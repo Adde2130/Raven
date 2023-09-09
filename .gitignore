@@ -3,4 +3,8 @@ App.exe
 Raven.dll
 Raven32.dll
 Raven64.dll
+linkerror32
+linkerror64
+build32
+build64
 makefile.old

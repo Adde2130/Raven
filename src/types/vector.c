@@ -66,7 +66,7 @@ void vector_add(Vector* vec, void* item) {
     printf("Vector items at 0x%p appended the new item_count %u\n", vec->items, vec->item_count);
 #endif
 
-    memcpy(vec->items + vec->item_size * (vec->item_count - 1), item, item, vec->item_size);
+    memcpy(vec->items + vec->item_size * (vec->item_count - 1), item, vec->item_size);
 }
 
 //  TODO: Fix 

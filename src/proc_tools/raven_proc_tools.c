@@ -23,31 +23,35 @@ DWORD get_process_id(const char* target){
 }
 
 bool inject_dll(const char* dllname, int pid){
-    bool success = false;
     char dllpath[MAX_PATH] = {0};
     GetFullPathName(dllname, MAX_PATH, dllpath, NULL);
     HANDLE hProc= OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
 
     if(hProc && hProc != INVALID_HANDLE_VALUE) {
         void* loc = VirtualAllocEx(hProc, 0, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-        if(!loc)
-            goto end;
+        if(!loc) {
+            CloseHandle(hProc);
+            return false;
+        }
 
-        success = WriteProcessMemory(hProc, loc, dllpath, strlen(dllpath) + 1, 0);
-        if(!success)
-            goto end;
+        bool success = WriteProcessMemory(hProc, loc, dllpath, strlen(dllpath) + 1, 0);
+        if(!success) {
+            CloseHandle(hProc);
+            return false;
+        }
 
-        success = false;
         HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibrary, loc, 0, 0);
-        if(!hThread || hThread == INVALID_HANDLE_VALUE)
-            goto end;
+        if(!hThread || hThread == INVALID_HANDLE_VALUE) {
+            CloseHandle(hProc);
+            return false;
+        }
+            
 
         WaitForSingleObject(hThread, INFINITE);
         CloseHandle(hThread);
-        success = true;
+
     }
 
-end:
     CloseHandle(hProc);
-    return success;
+    return true;
 }
