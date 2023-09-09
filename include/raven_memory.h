@@ -41,4 +41,14 @@ void  protected_read(void* dest, void* src, int len);
 void  read_bytes(void* src, void* read_buffer, int len);
 void  write_bytes(void* src, void* dest, int len);
 
+/**
+ * @brief Makes sure that the pointer is within the program memory region 
+ *        and that it doesn't access protected memory.
+ * 
+ * @param ptr   The pointer
+ * @param size  The size of the pointer
+ * @returns true if the pointer is accessing good memory, otherwise false
+ */
+bool pointer_valid(void* ptr, uint32_t size);
+
 #endif
