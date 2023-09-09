@@ -13,8 +13,8 @@ typedef struct {
 
 typedef struct {
     long address;
-    byte* patch_bytes;
-    byte* original_bytes;
+    uint8_t* patch_bytes;
+    uint8_t* original_bytes;
 } mem_patch;
 
 /**
@@ -36,9 +36,9 @@ typedef struct {
  * \param p_mem_ptr The mem_ptr containing the offsets.
  * \returns         The location of the heap memory
 */
-uintptr_t* trace_pointer(mem_ptr* p_mem_ptr);
-void protected_read(void* dest, void* src, int len);
-void read_bytes(void* src, void* read_buffer, int len);
-void write_bytes(void* src, void* dest, int len);
+void* trace_pointer(mem_ptr* p_mem_ptr);
+void  protected_read(void* dest, void* src, int len);
+void  read_bytes(void* src, void* read_buffer, int len);
+void  write_bytes(void* src, void* dest, int len);
 
 #endif

@@ -26,10 +26,11 @@ OBJS_32 := $(C_OBJS_32) $(CPP_OBJS_32)
 OBJS_64 := $(C_OBJS_64) $(CPP_OBJS_64)
 
 # Target DLL and LIB
-TARGET32 := Raven32.dll
-TARGET64 := Raven64.dll
-LIB32 := Raven32.a
-LIB64 := Raven64.a
+LIB_DIR := lib
+TARGET32 := $(LIB_DIR)/Raven32.dll
+TARGET64 := $(LIB_DIR)/Raven64.dll
+LIB32 := $(LIB_DIR)/libRaven32.a
+LIB64 := $(LIB_DIR)/libRaven64.a
 
 # MinGW Paths
 MINGW32_PATH := C:/mingw32/bin
@@ -47,10 +48,10 @@ LDFLAGS :=
 
 .PHONY: all clean
 
-all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
+all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
 	@echo "Successfully built Raven"
 
-$(BUILD_DIR_32) $(BUILD_DIR_64):
+$(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR):
 	$(ECHO)mkdir -p $@
 
 $(BUILD_DIR_32)/%.o: $(SRC_DIR)/%.c
@@ -82,4 +83,4 @@ $(LIB64): $(OBJS_64)
 	$(ECHO)$(AR) rcs $@ $^
 
 clean:
-	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
+	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)

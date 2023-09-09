@@ -1,6 +1,6 @@
 #include "raven_memory.h"
 
-uintptr_t* trace_pointer(mem_ptr* p_mem_ptr){
+void* trace_pointer(mem_ptr* p_mem_ptr){
     uintptr_t* location = (uintptr_t*)((uintptr_t)GetModuleHandle(NULL) + (uintptr_t)p_mem_ptr->base_address);
     for(int i = 0; i < p_mem_ptr->total_offsets; i++) {
         if(location == NULL)
@@ -8,6 +8,7 @@ uintptr_t* trace_pointer(mem_ptr* p_mem_ptr){
 
         location = (uintptr_t*)(*location + p_mem_ptr->offsets[i]);
     }
+    
     return location;
 }
 

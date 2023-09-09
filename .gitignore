@@ -10,3 +10,4 @@ linkerror64
 build32
 build64
 makefile.old
+lib/*

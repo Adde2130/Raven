@@ -2,6 +2,7 @@
 #include <TlHelp32.h>
 #include <winternl.h>
 #include <Psapi.h>
+#include <stdio.h>
 
 DWORD get_process_id(const char* target){
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -25,6 +26,13 @@ DWORD get_process_id(const char* target){
 bool inject_dll(const char* dllname, int pid){
     char dllpath[MAX_PATH] = {0};
     GetFullPathName(dllname, MAX_PATH, dllpath, NULL);
+
+    /* Check that the file actually exists */
+    FILE *file = fopen(dllname, "r");
+    if (!file)
+        return false;
+    fclose(file);
+
     HANDLE hProc= OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
 
     if(hProc && hProc != INVALID_HANDLE_VALUE) {
