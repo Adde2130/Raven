@@ -3,6 +3,8 @@ App.exe
 Raven.dll
 Raven32.dll
 Raven64.dll
+Raven32.a
+Raven64.a
 linkerror32
 linkerror64
 build32

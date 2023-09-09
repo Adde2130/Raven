@@ -25,9 +25,11 @@ CPP_OBJS_64 := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR_64)/%.o,$(CPP_SRCS))
 OBJS_32 := $(C_OBJS_32) $(CPP_OBJS_32)
 OBJS_64 := $(C_OBJS_64) $(CPP_OBJS_64)
 
-# Target DLL
+# Target DLL and LIB
 TARGET32 := Raven32.dll
 TARGET64 := Raven64.dll
+LIB32 := Raven32.a
+LIB64 := Raven64.a
 
 # MinGW Paths
 MINGW32_PATH := C:/mingw32/bin
@@ -45,7 +47,7 @@ LDFLAGS :=
 
 .PHONY: all clean
 
-all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64)
+all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
 	@echo "Successfully built Raven"
 
 $(BUILD_DIR_32) $(BUILD_DIR_64):
@@ -73,5 +75,11 @@ $(TARGET32): $(OBJS_32)
 $(TARGET64): $(OBJS_64)
 	$(ECHO)$(CXX64) $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
 
+$(LIB32): $(OBJS_32)
+	$(ECHO)$(AR) rcs $@ $^
+
+$(LIB64): $(OBJS_64)
+	$(ECHO)$(AR) rcs $@ $^
+
 clean:
-	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64)
+	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
