@@ -31,17 +31,17 @@ void* trace_pointer(mem_ptr* p_mem_ptr){
     return location;
 }
 
-void protected_read(void* dest, void* src, int len){
+void protected_write(void* dest, const void* src, int len){
     DWORD old_protect;
     VirtualProtect(dest, len, PAGE_EXECUTE_READWRITE, &old_protect);
     memcpy(dest, src, len);
-    VirtualProtect(dest, len, old_protect, NULL);
+    VirtualProtect(dest, len, old_protect, &old_protect);
 }
 
 void read_bytes(void* src, void* read_buffer, int len){
-    protected_read(read_buffer, src, len);
+    protected_write(read_buffer, src, len);
 }
 
 void write_bytes(void* src, void* dest, int len){
-    protected_read(dest, src, len);
+    protected_write(dest, src, len);
 }

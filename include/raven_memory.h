@@ -37,7 +37,15 @@ typedef struct {
  * \returns         The location of the heap memory
 */
 void* trace_pointer(mem_ptr* p_mem_ptr);
-void  protected_read(void* dest, void* src, int len);
+/**
+ * @brief Writes to memory in a safe way by temporarily removing the memory protection
+ *        and then restoring it after the operation.
+ * 
+ * @param dest Pointer to where the bytes should be written
+ * @param src  Pointer to where to read the bytes from
+ * @param len  The amount of bytes to read
+ */
+void  protected_write(void* dest, const void* src, int len);
 void  read_bytes(void* src, void* read_buffer, int len);
 void  write_bytes(void* src, void* dest, int len);
 
@@ -47,6 +55,7 @@ void  write_bytes(void* src, void* dest, int len);
  * 
  * @param ptr   The pointer
  * @param size  The size of the pointer
+ * 
  * @returns true if the pointer is accessing good memory, otherwise false
  */
 bool pointer_valid(void* ptr, uint32_t size);
