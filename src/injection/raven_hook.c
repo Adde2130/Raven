@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "raven_debug.h"
 
-bool hook_function(const char* lib, const char* func_name, void* new_func, void** func_trampoline, uint8_t* original_bytes){
+bool hook_function(const char* lib, const char* func_name, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes){
     const size_t jmpsize = 5;
     const uint8_t JMP = 0xE9;
 
@@ -12,21 +12,22 @@ bool hook_function(const char* lib, const char* func_name, void* new_func, void*
         return false;
 
     if(original_bytes != NULL)
-        memcpy(original_bytes, target_func, jmpsize);
+        memcpy(original_bytes, target_func, jmpsize + mangled_bytes);
 
     if(func_trampoline != NULL) {
-        *func_trampoline = VirtualAlloc(NULL, jmpsize + jmpsize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        *func_trampoline = VirtualAlloc(NULL, jmpsize + jmpsize + mangled_bytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE);
         if(!*func_trampoline)
             return false;
 
-        memcpy(*func_trampoline, target_func, jmpsize);
+        protected_write(*func_trampoline, target_func, jmpsize + mangled_bytes);
         uintptr_t trampoline_jmp_target = (uintptr_t)target_func + jmpsize;
-        uintptr_t trampoline_jmp_offset = trampoline_jmp_target - ((uintptr_t)*func_trampoline + jmpsize);
-        protected_write((uint8_t*)*func_trampoline + jmpsize, &JMP, 1);
-        protected_write((uint8_t*)*func_trampoline + jmpsize + 1, &trampoline_jmp_offset, sizeof(uintptr_t) - 1);
-    }
-
-    uintptr_t jmp_offset = (uintptr_t)new_func - (uintptr_t)target_func - jmpsize;
+        intptr_t  trampoline_jmp_offset = trampoline_jmp_target - ((uintptr_t)*func_trampoline + jmpsize + jmpsize + mangled_bytes);
+        protected_write( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes, &JMP, 1);
+        protected_write( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes + 1, &trampoline_jmp_offset, 4);
+        VirtualProtect(*func_trampoline, jmpsize + jmpsize + mangled_bytes, PAGE_EXECUTE, NULL);
+    } 
+    
+    intptr_t jmp_offset = (uintptr_t)new_func - (uintptr_t)target_func - jmpsize;
     protected_write((uint8_t*)target_func, &JMP, 1);
     protected_write((uint8_t*)target_func + 1, &jmp_offset, jmpsize - 1);
 
