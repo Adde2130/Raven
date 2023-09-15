@@ -15,21 +15,29 @@ bool hook_function(const char* lib, const char* func_name, void* new_func, void*
         memcpy(original_bytes, target_func, jmpsize + mangled_bytes);
 
     if(func_trampoline != NULL) {
-        *func_trampoline = VirtualAlloc(NULL, jmpsize + jmpsize + mangled_bytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE);
+        *func_trampoline = VirtualAlloc(NULL, jmpsize + jmpsize + mangled_bytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
         if(!*func_trampoline)
             return false;
 
-        protected_write(*func_trampoline, target_func, jmpsize + mangled_bytes);
         uintptr_t trampoline_jmp_target = (uintptr_t)target_func + jmpsize;
-        intptr_t  trampoline_jmp_offset = trampoline_jmp_target - ((uintptr_t)*func_trampoline + jmpsize + jmpsize + mangled_bytes);
-        protected_write( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes, &JMP, 1);
-        protected_write( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes + 1, &trampoline_jmp_offset, 4);
-        VirtualProtect(*func_trampoline, jmpsize + jmpsize + mangled_bytes, PAGE_EXECUTE, NULL);
+        intptr_t  trampoline_jmp_offset = trampoline_jmp_target - ((uintptr_t)*func_trampoline + jmpsize + jmpsize);
+
+        DWORD oldprotect;
+        memcpy(*func_trampoline, target_func, jmpsize + mangled_bytes);
+        memcpy( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes, &JMP, 1);
+        memcpy( (uint8_t*)(*func_trampoline) + jmpsize + mangled_bytes + 1, &trampoline_jmp_offset, jmpsize - 1);
+        VirtualProtect(*func_trampoline, jmpsize + jmpsize + mangled_bytes, PAGE_EXECUTE, &oldprotect);
     } 
-    
+
     intptr_t jmp_offset = (uintptr_t)new_func - (uintptr_t)target_func - jmpsize;
     protected_write((uint8_t*)target_func, &JMP, 1);
     protected_write((uint8_t*)target_func + 1, &jmp_offset, jmpsize - 1);
+
+    infobox(
+        "*func_trampoline: %p\n"
+        "target_func: %p\n"
+        , *func_trampoline, target_func
+    );
 
     return true;
 }

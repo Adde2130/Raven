@@ -63,3 +63,24 @@ bool inject_dll(const char* dllname, int pid){
     CloseHandle(hProc);
     return true;
 }
+
+int8_t start_process_with_injection(const char* executable, const char* dll){
+    STARTUPINFO startinfo = {0};
+    PROCESS_INFORMATION procinfo = {0};
+    bool result;
+
+    startinfo.cb = sizeof(startinfo);
+
+    result = CreateProcess(executable, NULL, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &startinfo, &procinfo);
+    if(!result)
+        return -1;
+
+    result = inject_dll(dll, procinfo.dwProcessId);
+    if(!result)
+        return -2;
+
+    ResumeThread(procinfo.hThread);
+    CloseHandle(procinfo.hThread);
+
+    return 0;
+}

@@ -25,4 +25,15 @@ DWORD get_process_id(const char* target);
 */
 bool inject_dll(const char* dllname, int pid);
 
+/**
+ * @brief Starts a process with the given dll injected
+ * 
+ * @param executable The path to the executable
+ * @param dll        The path to the DLL
+ * 
+ * @return 0 if the function succeeds. -1 if the process creation failed and
+ *         -2 if the dll injection failed.
+ */
+int8_t start_process_with_injection(const char* executable, const char* dll);
+
 #endif
