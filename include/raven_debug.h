@@ -2,6 +2,7 @@
 #define RAVEN_DEBUG_H
 
 void infobox(const char* format, ...);
+void writefile(const char* filename, const char* format, ...);
 
 /**
  * @brief Creates a breakpoint at the specified address. Use the Windows

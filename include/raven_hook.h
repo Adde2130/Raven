@@ -5,13 +5,14 @@
 #include "types.h"
 
 /**
- * --- UNFINISHED ---
+ * --- MAYBE FINISHED? MORE WORK TO HANDLE EDGE CASES NEEDED ---
  *        
  * Hooks the specified function in the current process. The parameters and calling convention
  * needs to match eachother or else the hook will crash the process.  
  * 
  * TODO: add mangled bytes as parameter
  * 
+ * @param process        Handle to the process where allocation should be made
  * @param lib            The name of the library. If NULL, will use the process handle instead. 
  * @param func_to_hook   The name of the function to hook.
  * @param new_func       Your new function which will replace the original
@@ -20,6 +21,6 @@
  * 
  * @returns false if the hook failed (and the program didn't crash lol), otherwise true
  */
-bool hook_function(const char* lib, const char* func_name, void* new_func, void** original_func, uint8_t* original_bytes);
+bool hook_function(const char* lib, const char* func_name, void* new_func, void** original_func, uint8_t mangled_bytes, uint8_t* original_bytes);
 
 #endif

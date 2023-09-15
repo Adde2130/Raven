@@ -18,3 +18,16 @@ void breakpoint(void* address, uint8_t* original_byte){
     protected_write(original_byte, address, 1);
     protected_write(address, &breakpoint, 1);
 }
+
+void writefile(const char* filename, const char* format, ...){
+    FILE* info = fopen(filename, "a");
+    if(info != NULL) {
+        char output[256];
+        va_list args;
+        va_start(args, format);
+        vsprintf_s(output, 256, format, args);
+        va_end(args); 
+        fputs(output, info);
+        fclose(info);
+    }
+}
