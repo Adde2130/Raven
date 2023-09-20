@@ -42,9 +42,9 @@ CC64 := $(MINGW64_PATH)/gcc
 CXX32 := $(MINGW32_PATH)/g++
 CXX64 := $(MINGW64_PATH)/g++
 
-CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -shared -static-libgcc
+CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -static
 CXXFLAGS := $(CFLAGS) -static-libstdc++
-LDFLAGS := 
+LDFLAGS := -lpsapi -lshlwapi
 
 .PHONY: all clean
 
@@ -71,10 +71,10 @@ $(BUILD_DIR_64)/%.o: $(SRC_DIR)/%.cpp
 	$(ECHO)$(CXX64) $(CXXFLAGS) -m64 -c $< -o $@
 
 $(TARGET32): $(OBJS_32)
-	$(ECHO)$(CXX32) $(CFLAGS) -m32 $^ -o $@ $(LDFLAGS) 1>linkerror32 2>&1
+	$(ECHO)$(CXX32) -shared $(CFLAGS) -m32 $^ -o $@ $(LDFLAGS) 1>linkerror32 2>&1
 
 $(TARGET64): $(OBJS_64)
-	$(ECHO)$(CXX64) $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
+	$(ECHO)$(CXX64) -shared $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
 
 $(LIB32): $(OBJS_32)
 	$(ECHO)$(AR) rcs $@ $^

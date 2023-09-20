@@ -37,6 +37,7 @@ typedef struct {
  * \returns         The location of the heap memory
 */
 void* trace_pointer(mem_ptr* p_mem_ptr);
+
 /**
  * @brief Writes to memory in a safe way by temporarily removing the memory protection
  *        and then restoring it after the operation.
@@ -46,6 +47,7 @@ void* trace_pointer(mem_ptr* p_mem_ptr);
  * @param len  The amount of bytes to read
  */
 void  protected_write(void* dest, const void* src, int len);
+
 void  read_bytes(void* src, void* read_buffer, int len);
 void  write_bytes(void* src, void* dest, int len);
 

@@ -12,3 +12,6 @@ build64
 makefile.old
 lib/*
 .vscode/
+
+RavenPy/*
+!RavenPy/src/*.c

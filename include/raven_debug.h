@@ -1,6 +1,8 @@
 #ifndef RAVEN_DEBUG_H
 #define RAVEN_DEBUG_H
 
+#include <stdint.h>
+
 void infobox(const char* format, ...);
 void writefile(const char* filename, const char* format, ...);
 
