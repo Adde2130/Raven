@@ -1,11 +1,20 @@
 #include "raven_proc_tools.h"
 #include "raven_memory.h"
+#include "raven_debug.h"
 #include <TlHelp32.h>
 #include <winternl.h>
 #include <Psapi.h>
 #include <stdio.h>
 #include <shlwapi.h>
 #include <inttypes.h>
+
+NTSTATUS NTAPI NtQueryInformationProcess(
+    HANDLE ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID ProcessInformation,
+    ULONG ProcessInformationLength,
+    PULONG ReturnLength
+);
 
 DWORD get_process_id(const char* target){
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -158,67 +167,30 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
     return 0;
 }
 
-int8_t hijack_entry_point(const char* executable, uintptr_t* p_entrypoint, char* original_bytes) {
+int8_t hijack_entry_point(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes) {
     PROCESS_INFORMATION procinfo;
     STARTUPINFO startinfo;
-    IMAGE_DOS_HEADER dosHeader;
-#ifdef _WIN64
-    IMAGE_NT_HEADERS64 ntHeaders;
-#else
-    IMAGE_NT_HEADERS   ntHeaders;
-#endif
 
     ZeroMemory(&startinfo, sizeof(startinfo));
     startinfo.cb = sizeof(startinfo);
     ZeroMemory(&procinfo, sizeof(procinfo));
 
-    char cmdLine[MAX_PATH];
+    char cmdLine[512];
     sprintf(cmdLine, "\"%s\"", executable);
-    if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &startinfo, &procinfo) || procinfo.hProcess == INVALID_HANDLE_VALUE || !procinfo.hProcess) {
+    for(int i = 0; i < argc; i++)
+        sprintf(cmdLine + strlen(cmdLine), " %s", argv[i]);
+
+    if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &startinfo, &procinfo) || procinfo.hProcess == INVALID_HANDLE_VALUE || !procinfo.hProcess) {
         return 1;
     }
 
-    HMODULE hModules[1024] = {0};
-    DWORD cbNeeded;
-
-    // This is the dumbest shit I have ever come up with but I am desperate, have been sitting 8 hours with this
-    // I fucking despise this with my entire soul, TODO: FIX THIS PLEASE
-    while(!EnumProcessModules(procinfo.hProcess, hModules, sizeof(hModules), &cbNeeded)) {
-        Sleep(2);
-        ZeroMemory(hModules, sizeof(hModules));
-    }
-    SuspendThread(procinfo.hThread);
-
-    // if (!EnumProcessModules(procinfo.hProcess, hModules, sizeof(hModules), &cbNeeded)) {
-    //     printf("ERROR getting module handle: %lu\n", GetLastError());
-    //     CloseHandle(procinfo.hProcess);
-    //     CloseHandle(procinfo.hThread);
-    //     return 2;
-    // }
-
-    HMODULE hMainExecutable = hModules[0];
-
-    if (!ReadProcessMemory(procinfo.hProcess, hMainExecutable, &dosHeader, sizeof(dosHeader), NULL)) {
-        printf("ERROR readding process memory: %lu\n", GetLastError());
-        CloseHandle(procinfo.hProcess);
-        CloseHandle(procinfo.hThread);
-        return 3;
-    }
-
-    if (!ReadProcessMemory(procinfo.hProcess, (BYTE*)hMainExecutable + dosHeader.e_lfanew, &ntHeaders, sizeof(ntHeaders), NULL)) {
-        CloseHandle(procinfo.hProcess);
-        CloseHandle(procinfo.hThread);
-        return 4;
-    }
-
-
-    uintptr_t entrypoint = (uintptr_t)hMainExecutable + ntHeaders.OptionalHeader.AddressOfEntryPoint;
-    char selfjump[2] = {0xEB, 0x00};
+    void* entrypoint;
+    find_entry_point(executable, &entrypoint);
+    char selfjump[2] = {0xEB, 0xFE};
 
     ReadProcessMemory(procinfo.hProcess, (void*) entrypoint, original_bytes, 2, NULL);
     WriteProcessMemory(procinfo.hProcess, (void*) entrypoint, selfjump, 2, NULL);
-
-    *p_entrypoint = entrypoint;
+    *p_entrypoint = (uintptr_t)entrypoint;
 
     ResumeThread(procinfo.hThread);
     CloseHandle(procinfo.hProcess);
@@ -227,6 +199,41 @@ int8_t hijack_entry_point(const char* executable, uintptr_t* p_entrypoint, char*
     return 0;
 }
 
+uint32_t find_entry_point(const char* executable, void** entrypoint){
+    BY_HANDLE_FILE_INFORMATION bhfi;
+    HANDLE hMapping;
+    char *lpBase;
+    HANDLE hFile = CreateFile(executable, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return 1;
+
+    if (!GetFileInformationByHandle(hFile, &bhfi))
+        return 2;
+
+    hMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, bhfi.nFileSizeHigh, bhfi.nFileSizeLow, NULL);
+    if (!hMapping)
+        return 3;
+    lpBase = (char *)MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, bhfi.nFileSizeLow);
+    if (!lpBase)
+        return 4;
+
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)lpBase;
+    if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
+        return 5;
+
+    PIMAGE_NT_HEADERS32 ntHeader = (PIMAGE_NT_HEADERS32)(lpBase + dosHeader->e_lfanew);
+    if (ntHeader->Signature != IMAGE_NT_SIGNATURE)
+        return 6;
+
+    uintptr_t pEntryPoint = ntHeader->OptionalHeader.ImageBase + ntHeader->OptionalHeader.AddressOfEntryPoint;
+    *entrypoint = (void*) pEntryPoint;
+
+    UnmapViewOfFile((LPCVOID)lpBase);
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+
+    return 0;
+}
 
 bool is_module_loaded(HANDLE process, const char* module_name, HMODULE* module){
     HMODULE modules[256] = {0};

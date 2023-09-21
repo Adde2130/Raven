@@ -44,7 +44,7 @@ CXX64 := $(MINGW64_PATH)/g++
 
 CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -static
 CXXFLAGS := $(CFLAGS) -static-libstdc++
-LDFLAGS := -lpsapi -lshlwapi
+LDFLAGS := -lpsapi -lshlwapi -lntdll
 
 .PHONY: all clean
 

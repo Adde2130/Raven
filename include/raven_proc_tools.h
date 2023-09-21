@@ -44,13 +44,26 @@ bool inject_dll(const char* dllname, int pid);
  */
 uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize);
 
+
+/**
+ * @brief Finds the entry point of an executable by reading the PE headers.
+ * 
+ * @param executable   [in]  The full path of the executable
+ * @param p_entrypoint [out] The address of the entrypoint
+ * @return 0 if the code succeeds, otherwise _________
+ */
+uint32_t find_entry_point(const char* executable, void** p_entrypoint);
+
 /**
  * @brief Starts a process and creates an infinite jump loop at the entry point, effectively
- *        pausing it but allowing threads to work within the process. 
+ *        pausing it but allowing threads to work within the process. Arguments can be passed
+ *        as well.
  * 
- * @param executable     [in]  The path to the executable
- * @param p_entrypoint   [out] The address of the entrypoint
- * @param original_bytes [out] The 2 bytes originally at the entry point
+ * @param executable     [in]           The path to the executable
+ * @param argc           [in, optional] The amount of arguments
+ * @param argv           [in, optional] The arguments
+ * @param p_entrypoint   [out]          The address of the entrypoint
+ * @param original_bytes [out]          The 2 bytes originally at the entry point
  * 
  * @return 0 if the code succeeds, otherwise _________
  * 
@@ -58,18 +71,9 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
  *          EnumProcessModules fails. This is a bit inconsistent. TODO: Make the function know
  *          when all DLLs are loaded and THEN suspend it.
  */
-int8_t hijack_entry_point(const char* executable, uintptr_t* p_entrypoint, char* original_bytes);
+int8_t hijack_entry_point(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes);
 
-/**
- * @brief Starts a process and creates an infinite jump loop at the user specified address, supposed to
- *        be the entry point.
- * 
- * @param executable [in] The executable file
- * @param main       [in] The address of the entry point
- * 
- * @return 0 of the code succeeeds, otherwise _________
- */
-int8_t hijack_entry_point_alternate(const char* executable, uintptr_t* p_entrypoint, char* original_bytes);
+uint8_t hijack_entry_point_alternate(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes);
 
 /**
  * @brief Checks if a process is running on WOW64 (32bit process on 64 bit windows).
