@@ -9,7 +9,7 @@ endif
 SRC_DIR := src
 BUILD_DIR_32 := build32
 BUILD_DIR_64 := build64
-INCLUDE := include $(dir $(wildcard $(SRC_DIR)/*)) $(dir $(wildcard $(SRC_DIR)/*/*))
+INCLUDE := include $(dir $(wildcard $(SRC_DIR)/*)) $(dir $(wildcard $(SRC_DIR)/*/*)) 
 
 # Separate C and C++ source files
 C_SRCS := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*/*.c)
@@ -44,7 +44,7 @@ CXX64 := $(MINGW64_PATH)/g++
 
 CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -static
 CXXFLAGS := $(CFLAGS) -static-libstdc++
-LDFLAGS := -lpsapi -lshlwapi -lntdll
+LDFLAGS := -lpsapi -lshlwapi -lntdll -lgdi32
 
 .PHONY: all clean
 

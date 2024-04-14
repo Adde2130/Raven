@@ -8,6 +8,18 @@
 #include <winternl.h>
 #include <ks.h>
 
+typedef struct {
+    void* entry;
+    char bytes[2];
+} EntryData;
+
+typedef struct {
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+    PROCESS_BASIC_INFORMATION pbi;
+    PEB peb;
+} RAVEN_PROCESS_INFO;
+
 /**
  * Gets the id of the given process.
  * 
@@ -51,19 +63,31 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
  * @param executable   [in]  The full path of the executable
  * @param p_entrypoint [out] The address of the entrypoint
  * @return 0 if the code succeeds, otherwise _________
+ * 
+ * @remarks This requires you to add the module base address when the module is loaded
+ *          as this info is not available in the PE.
  */
 uint32_t find_entry_point(const char* executable, void** p_entrypoint);
+
+/**
+ * @brief Repairs the entrypoint by writing the original data to it
+ * 
+ * @param data [in] The entry data for the PE
+ */
+void repair_entry(EntryData* data);
 
 /**
  * @brief Starts a process and creates an infinite jump loop at the entry point, effectively
  *        pausing it but allowing threads to work within the process. Arguments can be passed
  *        as well.
  * 
- * @param executable     [in]           The path to the executable
- * @param argc           [in, optional] The amount of arguments
- * @param argv           [in, optional] The arguments
- * @param p_entrypoint   [out]          The address of the entrypoint
- * @param original_bytes [out]          The 2 bytes originally at the entry point
+ * @param executable     [in]            The path to the executable
+ * @param argc           [in, optional]  The amount of arguments
+ * @param argv           [in, optional]  The arguments
+ * @param current_dir    [in, optional]  The directory the executable will be started in
+ * @param p_entrypoint   [out]           The address of the entrypoint
+ * @param original_bytes [out]           The 2 bytes originally at the entry point
+ * @param extended_info  [out, optional] Additional info about the process
  * 
  * @return 0 if the code succeeds, otherwise _________
  * 
@@ -71,9 +95,27 @@ uint32_t find_entry_point(const char* executable, void** p_entrypoint);
  *          EnumProcessModules fails. This is a bit inconsistent. TODO: Make the function know
  *          when all DLLs are loaded and THEN suspend it.
  */
-int8_t hijack_entry_point(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes);
+int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, void** p_entrypoint, char* original_bytes, RAVEN_PROCESS_INFO* extended_info);
 
-uint8_t hijack_entry_point_alternate(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes);
+/**
+ * @brief Alternate version where you need to create the process in suspended state and
+ *        then resume it yourself. This gives you freedom over the process creation.
+ * 
+ * @param executable     [in]  The path of the executable (needed to find entrypoint)
+ * @param hProcess       [in]  Handle to the process
+ * @param p_entrypoint   [out] The address of the entrypoint
+ * @param original_bytes [out] The original bytes
+ */
+void hijack_entry_point_ex(const char* executable, HANDLE hProcess, void** p_entrypoint, char* original_bytes);
+
+/**
+ * @brief Get the address of the function within the library
+ * 
+ * @param lib           The library
+ * @param function_name The name of the function
+ * @return void* 
+ */
+void* GetModuleFunction(const char* lib, const char* function_name);
 
 /**
  * @brief Checks if a process is running on WOW64 (32bit process on 64 bit windows).

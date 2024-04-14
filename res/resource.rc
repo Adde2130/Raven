@@ -1,0 +1,2 @@
+#include "raven_resource.h"
+RAVEN_ICON ICON "res/Raven.ico"

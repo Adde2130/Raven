@@ -130,6 +130,7 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         }
     }
 
+
     FARPROC hLoadLibrary = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
     if(!hLoadLibrary) {
         FreeLibrary(hLocalModule);
@@ -141,6 +142,7 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         FreeLibrary(hLocalModule);
         return 10;
     }
+    exit(0);
     WaitForSingleObject(hThread, INFINITE);
 
     DWORD hRemoteModule;
@@ -157,17 +159,19 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
     hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)dwFunctionOffset, data_loc, 0, 0);
     if(!hThread || hThread == INVALID_HANDLE_VALUE) {
         CloseHandle(hProc);
-        return 11;
+        return 12;
     } 
 
     WaitForSingleObject(hThread, INFINITE);
     CloseHandle(hThread);
 
     CloseHandle(hProc);
+
+    printf("HERE\n");
     return 0;
 }
 
-int8_t hijack_entry_point(const char* executable, int argc, char** argv, uintptr_t* p_entrypoint, char* original_bytes) {
+int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, void** p_entrypoint, char* original_bytes, RAVEN_PROCESS_INFO* extended_info) {
     PROCESS_INFORMATION procinfo;
     STARTUPINFO startinfo;
 
@@ -177,26 +181,72 @@ int8_t hijack_entry_point(const char* executable, int argc, char** argv, uintptr
 
     char cmdLine[512];
     sprintf(cmdLine, "\"%s\"", executable);
-    for(int i = 0; i < argc; i++)
-        sprintf(cmdLine + strlen(cmdLine), " %s", argv[i]);
+    if(argv != NULL && argc != 0){
+        for(int i = 0; i < argc; i++)
+            sprintf(cmdLine + strlen(cmdLine), " %s", argv[i]);
+    }
 
-    if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &startinfo, &procinfo) || procinfo.hProcess == INVALID_HANDLE_VALUE || !procinfo.hProcess) {
+    if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, current_dir, &startinfo, &procinfo) || procinfo.hProcess == INVALID_HANDLE_VALUE || !procinfo.hProcess) {
         return 1;
     }
 
-    void* entrypoint;
-    find_entry_point(executable, &entrypoint);
+    find_entry_point(executable, p_entrypoint);
     char selfjump[2] = {0xEB, 0xFE};
 
-    ReadProcessMemory(procinfo.hProcess, (void*) entrypoint, original_bytes, 2, NULL);
-    WriteProcessMemory(procinfo.hProcess, (void*) entrypoint, selfjump, 2, NULL);
-    *p_entrypoint = (uintptr_t)entrypoint;
+    /* Get the base address of the loaded module */
+    PROCESS_BASIC_INFORMATION pbi;
+    ULONG bytesReturned;
+    PEB peb;
+    SIZE_T bytesRead;
+
+    NTSTATUS status;    
+    status = NtQueryInformationProcess(procinfo.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &bytesReturned);
+    if(status != 0) { // STATUS_SUCCESS = 0
+        return 2;
+    }
+
+    WINBOOL success;
+    success = ReadProcessMemory(procinfo.hProcess, pbi.PebBaseAddress, &peb, sizeof(PEB), &bytesRead);
+    if(!success) {
+        return 3;
+    }
+    
+    /* This is supposed to hold the base address but it may change due to windows updates :/ */
+#ifndef _WIN64
+    (*p_entrypoint) += *(uintptr_t*)((char*)(&peb) + 0x8);
+#else
+    (*p_entrypoint) += *(uintptr_t*)((char*)(&peb) + 0x10);
+#endif
+
+    ReadProcessMemory(procinfo.hProcess, *p_entrypoint, original_bytes, 2, NULL);
+    WriteProcessMemory(procinfo.hProcess, *p_entrypoint, selfjump, 2, NULL);
+
+    if(extended_info != NULL) {
+        extended_info->si  = startinfo;
+        extended_info->pi  = procinfo;
+        extended_info->pbi = pbi;
+        extended_info->peb = peb;
+    }
 
     ResumeThread(procinfo.hThread);
     CloseHandle(procinfo.hProcess);
     CloseHandle(procinfo.hThread);
 
     return 0;
+}
+
+void hijack_entry_point_ex(const char* executable, HANDLE hProcess, void** p_entrypoint, char* original_bytes) {
+    find_entry_point(executable, p_entrypoint);
+    char selfjump[2] = {0xEB, 0xFE};
+
+    ReadProcessMemory(hProcess, *p_entrypoint, original_bytes, 2, NULL);
+    WriteProcessMemory(hProcess, *p_entrypoint, selfjump, 2, NULL);
+
+    CloseHandle(hProcess);
+}
+
+void repair_entry(EntryData* data){
+    protected_write(data->entry, data->bytes, 2);
 }
 
 uint32_t find_entry_point(const char* executable, void** entrypoint){
@@ -221,11 +271,16 @@ uint32_t find_entry_point(const char* executable, void** entrypoint){
     if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
         return 5;
 
+#ifndef _WIN64
     PIMAGE_NT_HEADERS32 ntHeader = (PIMAGE_NT_HEADERS32)(lpBase + dosHeader->e_lfanew);
+#else
+    PIMAGE_NT_HEADERS64 ntHeader = (PIMAGE_NT_HEADERS64)(lpBase + dosHeader->e_lfanew);
+#endif
+
     if (ntHeader->Signature != IMAGE_NT_SIGNATURE)
         return 6;
 
-    uintptr_t pEntryPoint = ntHeader->OptionalHeader.ImageBase + ntHeader->OptionalHeader.AddressOfEntryPoint;
+    uintptr_t pEntryPoint = ntHeader->OptionalHeader.AddressOfEntryPoint;
     *entrypoint = (void*) pEntryPoint;
 
     UnmapViewOfFile((LPCVOID)lpBase);
@@ -233,6 +288,10 @@ uint32_t find_entry_point(const char* executable, void** entrypoint){
     CloseHandle(hFile);
 
     return 0;
+}
+
+void* GetModuleFunction(const char* lib, const char* function_name){
+    return GetProcAddress(GetModuleHandle(lib), function_name);
 }
 
 bool is_module_loaded(HANDLE process, const char* module_name, HMODULE* module){

@@ -1,11 +1,13 @@
 #include "raven_memory.h"
+#include <intrin.h>
 
 bool pointer_valid(void* ptr, uint32_t size) {
+    if(ptr == NULL) return false;
     MEMORY_BASIC_INFORMATION mbi = {0};
     if (VirtualQuery(ptr, &mbi, sizeof(mbi)) == 0)
         return false; 
         
-    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD | PAGE_READONLY))
         return false;
 
     uintptr_t pInt = (uintptr_t)ptr;
@@ -44,4 +46,27 @@ void read_bytes(void* src, void* read_buffer, int len){
 
 void write_bytes(void* src, void* dest, int len){
     protected_write(dest, src, len);
+}
+
+void protected_fill_bytes(void* dest, const char byte, const int len) {
+    DWORD old_protect;
+    VirtualProtect(dest, len, PAGE_EXECUTE_READWRITE, &old_protect);
+    for(int i = 0; i < len; i++)
+        memcpy((char*)dest + i, &byte, 1);
+    VirtualProtect(dest, len, old_protect, &old_protect);
+}
+
+void patch(mem_patch* patch) {
+    protected_write(patch->original_bytes, patch->address, patch->size);
+    protected_write(patch->address, patch->patch_bytes, patch->size);
+}
+
+void* get_caller(){
+#ifdef _MSC_VER
+    return (char*)_ReturnAddress() - 5
+#elif defined __GNUC__
+    return (char*)__builtin_return_address(0) - 5;
+#else
+    #pragma message("Warning: get_caller not defined for this compiler!")
+#endif
 }

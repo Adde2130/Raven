@@ -12,10 +12,17 @@ typedef struct {
 } mem_ptr;
 
 typedef struct {
-    long address;
+    void* address;
     uint8_t* patch_bytes;
     uint8_t* original_bytes;
+    size_t size;
 } mem_patch;
+
+#ifdef __GNUC__
+#define FUNCTION_CALLER ((void*)((char*)__builtin_return_address(0) - 5))
+#elif defined _MSC_VER
+#define FUNCTION_CALLER ((void*)((char*)_ReturnAddress() - 5))
+#endif
 
 /**
  * Uses a memory pointer map to reach the desired address.
@@ -48,8 +55,24 @@ void* trace_pointer(mem_ptr* p_mem_ptr);
  */
 void  protected_write(void* dest, const void* src, int len);
 
+/**
+ * @brief Fills the destination with the byte specified
+ * 
+ * @param dest [in] The destination
+ * @param byte [in] The byte
+ * @param len  [in] The number of bytes to fill in
+ */
+void  protected_fill_bytes(void* dest, const char byte, int len);
+
 void  read_bytes(void* src, void* read_buffer, int len);
 void  write_bytes(void* src, void* dest, int len);
+
+/**
+ * @brief Writes the patch to memory of the executable
+ * 
+ * @param patch [in] The patch
+ */
+void patch(mem_patch* patch);
 
 /**
  * @brief Makes sure that the pointer is within the program memory region 
@@ -61,5 +84,6 @@ void  write_bytes(void* src, void* dest, int len);
  * @returns true if the pointer is accessing good memory, otherwise false
  */
 bool pointer_valid(void* ptr, uint32_t size);
+
 
 #endif
