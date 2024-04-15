@@ -27,4 +27,6 @@ void printmem(const unsigned char* address, const unsigned int size);
  */
 void __RAVEN_ERR(const char* file, int line, const char* msg);
 
+void iterate_modules(void*);
+
 #endif

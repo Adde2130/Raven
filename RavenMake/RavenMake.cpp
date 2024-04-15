@@ -16,7 +16,7 @@ bool replace(std::string path_s, std::string file_s) {
     // Replace the file with the one from the local folder "lib"
     fs::path new_file = libpath + "/" + file_s;
     if(!fs::exists(new_file)){
-        std::cout << "RavenMake error: The specified lib path does not contain the Raven libraries!" << std::endl;
+        std::cout << "\e[0;31mRavenMake error: The specified lib path does not contain the Raven libraries!\e[0;37m" << std::endl;
         exit(1);
     }
 
@@ -35,7 +35,7 @@ int main(int argc, const char* argv[]) {
         libpath = argv[1];
 
     if(!fs::exists(fs::path(libpath))){
-        std::cout << "RavenMake error: The specified lib path does not exist!" << std::endl;
+        std::cout << "\e[0;31mRavenMake error: The specified lib path does not exist!\e[0;37m" << std::endl;
         exit(1);
     }
 
@@ -43,14 +43,14 @@ int main(int argc, const char* argv[]) {
     stream.open("ravenlibs.txt", std::ios::in);
 
     if(!stream.is_open()) {
-        std::cout << "RavenMake error: Could not find 'ravenlibs.txt'!" << std::endl;
+        std::cout << "\e[0;31mRavenMake error: Could not find 'ravenlibs.txt'!\e[0;37m" << std::endl;
         exit(1);
     }
 
     std::string path;
     while(getline(stream, path)){
         if(!fs::exists(path)) {
-            std::cout << "RavenMake error: Path '" << path << "' does not exist!" << std::endl;
+            std::cout << "\e[0;31mRavenMake error: Path '" << path << "' does not exist!\e[0;37m" << std::endl;
             continue;
         }
 

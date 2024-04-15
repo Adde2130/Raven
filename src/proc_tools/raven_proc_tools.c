@@ -16,6 +16,22 @@ NTSTATUS NTAPI NtQueryInformationProcess(
     PULONG ReturnLength
 );
 
+/**
+ * @brief Internally used wrapper for LoadLibrary in order to avoid compiler warnings
+ * 
+ */
+DWORD WINAPI LoadLibraryWrapper(LPVOID lpParam) {
+    LPCTSTR lpFileName = (LPCTSTR)lpParam;
+    if (lpFileName == NULL) {
+        return 1; // Error: Invalid parameter
+    }
+    HMODULE hModule = LoadLibrary(lpFileName);
+    if (hModule == NULL) {
+        return 2; // Error: Failed to load library
+    }
+    return 0;
+}
+
 DWORD get_process_id(const char* target){
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if(!snap || snap == INVALID_HANDLE_VALUE) 
@@ -60,7 +76,7 @@ bool inject_dll(const char* dllname, int pid){
             return false;
         }
 
-        HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibrary, loc, 0, 0);
+        HANDLE hThread = CreateRemoteThread(hProc, 0, 0, LoadLibraryWrapper, loc, 0, 0);
         if(!hThread || hThread == INVALID_HANDLE_VALUE) {
             CloseHandle(hProc);
             return false;
@@ -76,7 +92,7 @@ bool inject_dll(const char* dllname, int pid){
     return true;
 }
 
-uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize){
+uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize) {
     char dllpath[MAX_PATH] = {0};
     GetFullPathName(dllname, MAX_PATH, dllpath, NULL);
 
@@ -86,7 +102,7 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         return 1;
     fclose(file);
 
-    HANDLE hProc= OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
+    HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
 
     if(!hProc || hProc == INVALID_HANDLE_VALUE) {
         return 2;
@@ -116,58 +132,88 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         return 6;
     }
 
-    HMODULE hLocalModule = LoadLibrary(dllname);
-    if(hLocalModule == NULL)
+    HMODULE hDll = LoadLibrary(dllname);
+    if(hDll == NULL)
         return 7;
 
-    FARPROC hLocalFunction = GetProcAddress(hLocalModule, "RavenLoader");
-    if(hLocalFunction == NULL) {
+    FARPROC RavenLoaderAddress = GetProcAddress(hDll, "RavenLoader");
+    if(RavenLoaderAddress == NULL) {
         /* In case of name mangling */
-        hLocalFunction = GetProcAddress(hLocalModule, "RavenLoader@4"); 
-        if(hLocalFunction == NULL) {
-            FreeLibrary(hLocalModule);
+        RavenLoaderAddress = GetProcAddress(hDll, "RavenLoader@4"); 
+        if(RavenLoaderAddress == NULL) {
+            FreeLibrary(hDll);
             return 8;
         }
     }
 
-
-    FARPROC hLoadLibrary = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
-    if(!hLoadLibrary) {
-        FreeLibrary(hLocalModule);
+    HANDLE LoadLibraryThread = CreateRemoteThread(hProc, 0, 0, (void*) LoadLibraryA, dllpathloc, 0, 0);
+    if(!LoadLibraryThread || LoadLibraryThread == INVALID_HANDLE_VALUE){
+        FreeLibrary(hDll);
+        VirtualFreeEx(hProc, dllpathloc, strlen(dllpath) + 1, MEM_RELEASE);
         return 9;
     }
+    WaitForSingleObject(LoadLibraryThread, INFINITE);
+    VirtualFreeEx(hProc, dllpathloc, strlen(dllpath) + 1, MEM_RELEASE);
 
-    HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)hLoadLibrary, dllpathloc, 0, 0);
-    if(!hThread || hThread == INVALID_HANDLE_VALUE){
-        FreeLibrary(hLocalModule);
+#ifndef _WIN64
+    DWORD hInjectedDll;
+    GetExitCodeThread(LoadLibraryThread, &hInjectedDll);
+    if(!hInjectedDll) {
+        FreeLibrary(hDll);
         return 10;
     }
-    exit(0);
-    WaitForSingleObject(hThread, INFINITE);
-
-    DWORD hRemoteModule;
-    GetExitCodeThread(hThread, &hRemoteModule);
-    if(hRemoteModule == 0) {
-        FreeLibrary(hLocalModule);
+#else
+    // Since threads created with CreateRemoteThread only return 32-bit values, we need a
+    // workaround to get the base of the dll in 64-bit...
+    uint64_t hInjectedDll = 0;
+    HMODULE modules[64];
+    BOOL module_info_success;
+    DWORD modules_size;
+    module_info_success = EnumProcessModules(hProc, modules, sizeof(modules), &modules_size);
+    if(!module_info_success)
         return 11;
+    
+    char module_name[MAX_PATH];
+    for (uint64_t i = 0; i < (modules_size / sizeof(HMODULE)); i++) {
+        module_info_success = GetModuleFileNameEx(hProc, modules[i], module_name, sizeof(module_name));
+        if(!module_info_success)
+            continue;
+
+        if(strcmp(module_name, dllpath))
+            continue;
+
+
+        MODULEINFO module_info;
+        module_info_success = GetModuleInformation(hProc, modules[i], &module_info, sizeof(module_info));
+        if(!module_info_success)
+            continue;
+
+        hInjectedDll = (uint64_t)module_info.lpBaseOfDll;
+
+        break;
     }
-    CloseHandle(hThread);
 
-    uintptr_t dwFunctionOffset = (uintptr_t)hLocalFunction - (uintptr_t)hLocalModule + (uintptr_t)hRemoteModule;
-    FreeLibrary(hLocalModule);
-
-    hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)dwFunctionOffset, data_loc, 0, 0);
-    if(!hThread || hThread == INVALID_HANDLE_VALUE) {
-        CloseHandle(hProc);
+    if(!hInjectedDll)
         return 12;
+#endif
+
+    CloseHandle(LoadLibraryThread);
+
+    uintptr_t dwFunctionOffset = (uintptr_t)RavenLoaderAddress - (uintptr_t)hDll + (uintptr_t)hInjectedDll;
+    FreeLibrary(hDll);
+
+    HANDLE RavenLoaderThread = CreateRemoteThread(hProc, 0, 0, (void*)dwFunctionOffset, data_loc, 0, 0);
+    if(!RavenLoaderThread || RavenLoaderThread == INVALID_HANDLE_VALUE) {
+        CloseHandle(hProc);
+        return 13;
     } 
 
-    WaitForSingleObject(hThread, INFINITE);
-    CloseHandle(hThread);
+    WaitForSingleObject(RavenLoaderThread, INFINITE);
+    CloseHandle(RavenLoaderThread);
+    VirtualFreeEx(hProc, data_loc, datasize, MEM_RELEASE);
 
     CloseHandle(hProc);
 
-    printf("HERE\n");
     return 0;
 }
 

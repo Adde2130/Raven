@@ -63,6 +63,34 @@ void printmem(const unsigned char* address, const unsigned int size){
     printf("\n");
 }
 
+/**
+ * @brief ChatGPT ahh code
+ * 
+ * @param hProc The process of which to iterate over the modules of
+ */
+void iterate_modules(HANDLE hProc){
+    HMODULE hMods[1024];
+    DWORD cbNeeded;
+    if (EnumProcessModules(hProc, hMods, sizeof(hMods), &cbNeeded)) {
+        for (long long unsigned int i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
+            TCHAR szModName[MAX_PATH];
+            if (GetModuleFileNameEx(hProc, hMods[i], szModName, sizeof(szModName) / sizeof(TCHAR))) {
+                printf("Module %lld: %s\n", i + 1, szModName);
+
+                MODULEINFO moduleInfo;
+                if (GetModuleInformation(hProc, hMods[i], &moduleInfo, sizeof(moduleInfo))) {
+                    printf("   Base Address: 0x%p\n", moduleInfo.lpBaseOfDll);
+                    printf("   Size: %ld bytes\n", moduleInfo.SizeOfImage);
+                } else {
+                    printf("   Failed to get module information. Error code: %ld\n", GetLastError());
+                }
+            }
+        }
+    } else {
+        printf("Failed to enumerate process modules. Error code: %ld\n", GetLastError());
+    }
+}
+
 void __RAVEN_ERR(const char* file, int line, const char* msg){
     printf(
         "\n\e[0;31m------------------------------------------------------------------------------------\n"
