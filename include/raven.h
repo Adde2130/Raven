@@ -7,5 +7,6 @@
 #include "raven_memory.h"
 #include "raven_monitor.h"
 #include "raven_proc_tools.h"
+#include "raven_util.h"
 
 #endif

@@ -5,8 +5,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/**
+ * @brief Macro for getting the byte offset from a pointer
+ * 
+ * @param ptr    The address, expressed as a pointer or an integer
+ * @param offset The offset from the address
+ */
+#define PTROFFSET(ptr, offset) ((void*)(((uintptr_t)(ptr)) + ((intptr_t)(offset))))
+
+#define MEMORY_BLOCK_SIZE 0x1000
+#define MAX_MEMORY_RANGE 0x40000000
+
 typedef struct {
-    DWORD base_address;
+    void* base_address;
     int total_offsets;
     int offsets[];
 } mem_ptr;
@@ -17,12 +28,6 @@ typedef struct {
     uint8_t* original_bytes;
     size_t size;
 } mem_patch;
-
-#ifdef __GNUC__
-#define FUNCTION_CALLER ((void*)((char*)__builtin_return_address(0) - 5))
-#elif defined _MSC_VER
-#define FUNCTION_CALLER ((void*)((char*)_ReturnAddress() - 5))
-#endif
 
 /**
  * Uses a memory pointer map to reach the desired address.
@@ -40,10 +45,14 @@ typedef struct {
  * we can use this static address to find out where the memory allocated on the heap
  * resides.
  * 
- * \param p_mem_ptr The mem_ptr containing the offsets.
- * \returns         The location of the heap memory
+ * @param p_mem_ptr [in]  The mem_ptr containing the offsets
+ * @param ptr       [out] The final address 
+ * 
+ * @returns          0, if the function succeeds.
+ *                   1, if one of the offsets are null pointers.
+ *                   2, if one of the offsets point to invalid memory.
 */
-void* trace_pointer(mem_ptr* p_mem_ptr);
+uint8_t trace_pointer(const mem_ptr* p_mem_ptr, void** ptr);
 
 /**
  * @brief Writes to memory in a safe way by temporarily removing the memory protection
@@ -85,5 +94,15 @@ void patch(mem_patch* patch);
  */
 bool pointer_valid(void* ptr, uint32_t size);
 
+/**
+ * @brief Finds a memory region in proximity to the base with unallocated memory
+ * 
+ * @param base         [in] The base address
+ * @param desired_size [in] The desired size of the memory region
+ * @param range        [in] The range 
+ * 
+ * @returns The address of the unallocated memory 
+ */
+void* find_unallocated_memory(void* base);
 
 #endif

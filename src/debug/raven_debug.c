@@ -101,3 +101,20 @@ void __RAVEN_ERR(const char* file, int line, const char* msg){
     );
     exit(1);
 }
+
+void clip(const char* str, ...) {
+    char text[512];
+    va_list args;
+    va_start(args, str);
+    vsprintf_s(text, 512, str, args);
+    va_end(args);
+
+    const size_t len = strlen(text) + 1;
+    HGLOBAL hMem =  GlobalAlloc(GMEM_MOVEABLE, len);
+    memcpy(GlobalLock(hMem), text, len);
+    GlobalUnlock(hMem);
+    OpenClipboard(0);
+    EmptyClipboard();
+    SetClipboardData(CF_TEXT, hMem);
+    CloseClipboard();
+}

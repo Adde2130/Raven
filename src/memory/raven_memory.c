@@ -1,4 +1,5 @@
 #include "raven_memory.h"
+#include "raven_debug.h"
 #include <intrin.h>
 
 bool pointer_valid(void* ptr, uint32_t size) {
@@ -18,19 +19,114 @@ bool pointer_valid(void* ptr, uint32_t size) {
     return true;
 }
 
-void* trace_pointer(mem_ptr* p_mem_ptr){
+uint8_t trace_pointer(const mem_ptr* p_mem_ptr, void** ptr){
     uintptr_t* location = (uintptr_t*)((uintptr_t)GetModuleHandle(NULL) + (uintptr_t)p_mem_ptr->base_address);
     for(int i = 0; i < p_mem_ptr->total_offsets; i++) {
-        if(location == NULL || !pointer_valid(location, sizeof(uintptr_t)))
-            return NULL;
+        if(location == NULL)
+            return 1;
+        if(!pointer_valid(location, sizeof(uintptr_t)))
+            return 2;
 
         location = (uintptr_t*)(*location + p_mem_ptr->offsets[i]);
     }
 
     if(!pointer_valid(location, sizeof(uintptr_t)))
-        return NULL;
+        return 2;
 
-    return location;
+    *ptr = location;
+    return 0;
+}
+
+void* __find_prev_mem_region(void* base, void* min_addr, DWORD granularity) {
+    uintptr_t curr_addr = (uintptr_t)base;
+
+    curr_addr -= curr_addr % granularity;
+    curr_addr -= granularity;
+
+    while (curr_addr >= (uintptr_t)min_addr)
+    {
+        MEMORY_BASIC_INFORMATION memInfo;
+        if (VirtualQuery((void*)curr_addr, &memInfo, sizeof(memInfo)) == 0)
+            break;
+
+        if (memInfo.State == MEM_FREE)
+            return (void*)curr_addr;
+
+        if ((uintptr_t)memInfo.AllocationBase < granularity)
+            break;
+
+        curr_addr = (uintptr_t)memInfo.AllocationBase - granularity;
+    }
+
+    return NULL;
+}
+
+void* __find_next_mem_region(void* base, void* max_addr, DWORD granularity) {
+    uintptr_t curr_addr = (uintptr_t)base;
+
+    curr_addr -= curr_addr % granularity;
+    curr_addr += granularity;
+
+    while (curr_addr <= (uintptr_t)max_addr)
+    {
+        MEMORY_BASIC_INFORMATION memInfo;
+        if (VirtualQuery((void*)curr_addr, &memInfo, sizeof(memInfo)) == 0)
+            break;
+
+        if (memInfo.State == MEM_FREE)
+            return (void*)curr_addr;
+
+        curr_addr = (uintptr_t)memInfo.BaseAddress + memInfo.RegionSize;
+
+        curr_addr += granularity - 1;
+        curr_addr -= curr_addr % granularity;
+    }
+
+    return NULL;
+}
+
+void* find_unallocated_memory(void* base) {
+    void* min_addr;
+    void* max_addr;
+
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+
+    min_addr = si.lpMinimumApplicationAddress;
+    max_addr = si.lpMaximumApplicationAddress;
+
+    if(base > (void*)MAX_MEMORY_RANGE && min_addr > PTROFFSET(base, -MAX_MEMORY_RANGE))
+        min_addr = PTROFFSET(base, -MAX_MEMORY_RANGE);
+
+    if(max_addr > PTROFFSET(base, MAX_MEMORY_RANGE))
+        max_addr = PTROFFSET(base, MAX_MEMORY_RANGE);
+
+    max_addr = PTROFFSET(max_addr, -MEMORY_BLOCK_SIZE + 1);
+
+    void* curr_addr = base;
+    while (curr_addr >= min_addr) {
+        curr_addr = __find_prev_mem_region(curr_addr, min_addr, si.dwAllocationGranularity);
+        if (curr_addr == NULL)
+            break;
+
+        void* memblock = VirtualAlloc(curr_addr, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (memblock != NULL)        
+            return memblock;
+    }
+
+    curr_addr = base;
+    while (curr_addr <= max_addr) {
+        curr_addr = __find_next_mem_region(curr_addr, max_addr, si.dwAllocationGranularity);
+        if (curr_addr == NULL)
+                break;
+
+        void* memblock = VirtualAlloc(curr_addr, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (memblock != NULL)
+            return memblock;
+    }
+
+    return NULL;
+    
 }
 
 void protected_write(void* dest, const void* src, int len){
@@ -59,14 +155,4 @@ void protected_fill_bytes(void* dest, const char byte, const int len) {
 void patch(mem_patch* patch) {
     protected_write(patch->original_bytes, patch->address, patch->size);
     protected_write(patch->address, patch->patch_bytes, patch->size);
-}
-
-void* get_caller(){
-#ifdef _MSC_VER
-    return (char*)_ReturnAddress() - 5
-#elif defined __GNUC__
-    return (char*)__builtin_return_address(0) - 5;
-#else
-    #pragma message("Warning: get_caller not defined for this compiler!")
-#endif
 }

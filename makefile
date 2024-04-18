@@ -33,17 +33,22 @@ LIB32 := $(LIB_DIR)/libRaven32.a
 LIB64 := $(LIB_DIR)/libRaven64.a
 
 # MinGW Paths
-MINGW32_PATH := C:/mingw32/bin
-MINGW64_PATH := C:/mingw64/bin
+MINGW32_PATH := C:/msys64/mingw32/bin
+MINGW64_PATH := C:/msys64/mingw64/bin
 
 # Compilers
 CC32 := $(MINGW32_PATH)/gcc
 CC64 := $(MINGW64_PATH)/gcc
 CXX32 := $(MINGW32_PATH)/g++
 CXX64 := $(MINGW64_PATH)/g++
+AR32 := $(MINGW32_PATH)/ar
+AR64 := $(MINGW64_PATH)/ar
+RANLIB32 := $(MINGW32_PATH)/ranlib
+RANLIB64 := $(MINGW64_PATH)/ranlib
+
 
 CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -static
-CXXFLAGS := $(CFLAGS) -static-libstdc++
+CXXFLAGS := $(CFLAGS) -static-libgcc -static-libstdc++
 LDFLAGS := -lpsapi -lshlwapi -lntdll -lgdi32
 
 .PHONY: all clean
@@ -77,10 +82,12 @@ $(TARGET64): $(OBJS_64)
 	$(ECHO)$(CXX64) -shared $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
 
 $(LIB32): $(OBJS_32)
-	$(ECHO)$(AR) rcs $@ $^
+	$(ECHO)$(AR32) rcs $@ $^
+	$(ECHO)$(RANLIB32) $@
 
 $(LIB64): $(OBJS_64)
-	$(ECHO)$(AR) rcs $@ $^
+	$(ECHO)$(AR64) rcs $@ $^
+	$(ECHO)$(RANLIB64) $@
 
 clean:
 	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)

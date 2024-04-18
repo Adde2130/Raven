@@ -9,6 +9,7 @@
 #include <ks.h>
 
 typedef struct {
+    HANDLE hModule;
     void* entry;
     char bytes[2];
 } EntryData;
@@ -45,12 +46,12 @@ bool inject_dll(const char* dllname, int pid);
  *        and requires the DLL to have a DWORD WINAPI RavenLoader(LPVOID) function to call instead in order
  *        to handle the data and create the main thread. If the main thread is created
  *        in PROCESS_ATTACH under DllMain, then the thread will be created in the injector
- *        and the process will crash.
+ *        and the process will crash. The first value in the data MUST be an empty spot for a HANDLE
  * 
- * @param dllname  [in] The name of the dll
- * @param pid      [in] The process ID
- * @param data     [in] The data sent to the DLL
- * @param datasize [in] The size of the data sent to the DLL
+ * @param dllname  [in]           The name of the dll
+ * @param pid      [in]           The process ID
+ * @param data     [in, optional] The data sent to the DLL 
+ * @param datasize [in, optional] The size of the data sent to the DLL
  * 
  * @return 0 if the code succeeds, otherwise _________
  */

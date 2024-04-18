@@ -120,18 +120,6 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         return 4;
     }
 
-    void* data_loc = VirtualAllocEx(hProc, 0, datasize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if(!data_loc){
-        CloseHandle(hProc);
-        return 5;
-    }
-
-    success = WriteProcessMemory(hProc, data_loc, data, datasize, 0);
-    if(!success) {
-        CloseHandle(hProc);
-        return 6;
-    }
-
     HMODULE hDll = LoadLibrary(dllname);
     if(hDll == NULL)
         return 7;
@@ -196,6 +184,20 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
     if(!hInjectedDll)
         return 12;
 #endif
+
+    *(HANDLE*)data = (HANDLE)hInjectedDll;
+    
+    void* data_loc = VirtualAllocEx(hProc, 0, datasize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if(!data_loc){
+        CloseHandle(hProc);
+        return 5;
+    }
+
+    success = WriteProcessMemory(hProc, data_loc, data, datasize, 0);
+    if(!success) {
+        CloseHandle(hProc);
+        return 6;
+    }
 
     CloseHandle(LoadLibraryThread);
 

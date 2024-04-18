@@ -16,4 +16,16 @@
 */
 void create_detour(void* dest, void* patch, uint32_t leftover_bytes);
 
+/**
+ * @brief Looks through the current process to find code caves.
+ * 
+ * @param desired_size [in]           The minimum size required for the code cave
+ * @param hModule      [in]           A handle to the module to look for code caves in
+ * @param address      [in, optional] If not null, will look at a 2GB offset from
+ *                                    the address to ensure 32-bit relative jmp works.
+ * 
+ * @returns The address of the code cave
+ */
+void* find_code_cave(const size_t desired_size, const HANDLE hModule, const void* address);
+
 #endif

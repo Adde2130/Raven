@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#define byte_t unsigned char
+
 /* ------ Function pointer types ------ */
 typedef bool (*rfp_t )(int32_t);          // Render function pointer
 typedef void (*cbfp_t)(void*);            // Callback function pointer

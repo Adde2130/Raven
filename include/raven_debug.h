@@ -29,4 +29,12 @@ void __RAVEN_ERR(const char* file, int line, const char* msg);
 
 void iterate_modules(void*);
 
+/***
+ * @brief Put a string into the clipboard
+ * 
+ * @param str [in] The string to put in the clipboard
+ * @param ... [in] The variables 
+*/  
+void clip(const char* str, ...);
+
 #endif
