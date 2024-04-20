@@ -5,14 +5,14 @@
 #include "raven_assembly.h"
 #include "raven_hook.h"
 
-void* __create_relay(void* start_address, void* destination_address){
+void* __create_start_relay(void* start_address, void* destination_address){
     byte_t bytes[] = {
         PUSH_RAX,
         REX8, MOV_EAX, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0's are the address of the hook
         MODRM, 0xE0, // E0 -> E = JMP, 0 = RAX
     };
 
-    void* relay_address = find_unallocated_memory(start_address);
+    void* relay_address = find_unallocated_memory(start_address, sizeof(bytes));
 
     memcpy(bytes + 3, &destination_address, 8);
     memcpy(relay_address, bytes, sizeof(bytes));
@@ -20,12 +20,24 @@ void* __create_relay(void* start_address, void* destination_address){
     return relay_address;
 }
 
-/**
- * @brief Hooks th
- */
+void* __create_end_relay(void* destination_address) {
+    byte bytes[] = {
+        POP_RAX,
+        JMP_REL32, 0x00, 0x00, 0x00, 0x00
+    };
+
+
+    void* relay_address = find_unallocated_memory(destination_address, sizeof(bytes));
+
+    int32_t jmp_target = (intptr_t)destination_address - (intptr_t)relay_address - sizeof(bytes);
+
+    memcpy(bytes + 2, &jmp_target, 4);
+    memcpy(relay_address, &bytes, sizeof(bytes));
+
+    return relay_address;
+}
+
 bool hook_function(void* target_func, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes) {
-    const byte_t POP_RAX_CONST = POP_RAX;
-    const byte_t NOP_CONST = NOP;
     const byte_t JMP_REL32_CONST = JMP_REL32;
 
     const size_t jmpsize = 5;
@@ -55,31 +67,14 @@ bool hook_function(void* target_func, void* new_func, void** func_trampoline, ui
     } 
 
     if(relay) {
-        /* Write POP RAX before the prologue of the hook */
-        new_func = PTROFFSET(new_func, -1);
-        DWORD oldprotect;
-        VirtualProtect(PTROFFSET(new_func, -1), 2, PAGE_EXECUTE_READWRITE, &oldprotect);
-        if(!ISGARBAGE(*(unsigned char*)(new_func))) {
-            if(*(uint16_t*)PTROFFSET(new_func, -1) == 0x0F0B) {
-                protected_write(PTROFFSET(new_func, -1), &NOP_CONST, 1);
-            } else {
-                clip("%p", new_func);
-                infobox("WARNING! REPLACING INSTRUCTION %02X AT 0x%p WHILE TRYING TO HOOK 0x%p\n\nDid you forget to mark a function as a relay?", *(unsigned char*)(new_func), new_func, target_func);
-            }
-        }
-
-        memcpy(new_func, &POP_RAX_CONST, 1);
-        new_func = __create_relay(target_func, new_func);
-        VirtualProtect(PTROFFSET(new_func, -1), 2, oldprotect, &oldprotect);
-
+        new_func = __create_end_relay(new_func);
+        new_func = __create_start_relay(target_func, new_func);
     }
 
     intptr_t relative_jmp_offset = (intptr_t)new_func - (intptr_t)target_func - jmpsize;
 
     protected_write(target_func, &JMP_REL32_CONST, 1); 
     protected_write(PTROFFSET(target_func, 1), &relative_jmp_offset, 4);
-    clip("%p", target_func);
-    infobox("Hooked!");
 
     return true;
 }

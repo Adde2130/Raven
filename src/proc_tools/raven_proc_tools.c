@@ -1,6 +1,9 @@
 #include "raven_proc_tools.h"
 #include "raven_memory.h"
 #include "raven_debug.h"
+#include "raven_windows_internal.h"
+#include "raven_util.h"
+
 #include <TlHelp32.h>
 #include <winternl.h>
 #include <Psapi.h>
@@ -92,7 +95,7 @@ bool inject_dll(const char* dllname, int pid){
     return true;
 }
 
-uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize) {
+uint8_t inject_dll_ex(const char* dllname, int pid, RavenInjectionData* data, size_t datasize) {
     char dllpath[MAX_PATH] = {0};
     GetFullPathName(dllname, MAX_PATH, dllpath, NULL);
 
@@ -141,7 +144,6 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         return 9;
     }
     WaitForSingleObject(LoadLibraryThread, INFINITE);
-    VirtualFreeEx(hProc, dllpathloc, strlen(dllpath) + 1, MEM_RELEASE);
 
 #ifndef _WIN64
     DWORD hInjectedDll;
@@ -185,7 +187,8 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
         return 12;
 #endif
 
-    *(HANDLE*)data = (HANDLE)hInjectedDll;
+    data->mData.hModule = (HANDLE)hInjectedDll;
+    data->mData.dllname = dllpathloc;
     
     void* data_loc = VirtualAllocEx(hProc, 0, datasize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if(!data_loc){
@@ -219,7 +222,7 @@ uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize)
     return 0;
 }
 
-int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, void** p_entrypoint, char* original_bytes, RAVEN_PROCESS_INFO* extended_info) {
+int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, EntryData* entrydata, RAVEN_PROCESS_INFO* extended_info) {
     PROCESS_INFORMATION procinfo;
     STARTUPINFO startinfo;
 
@@ -238,7 +241,7 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
         return 1;
     }
 
-    find_entry_point(executable, p_entrypoint);
+    find_entry_point(executable, &entrydata->entry);
     char selfjump[2] = {0xEB, 0xFE};
 
     /* Get the base address of the loaded module */
@@ -261,19 +264,19 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
     
     /* This is supposed to hold the base address but it may change due to windows updates :/ */
 #ifndef _WIN64
-    (*p_entrypoint) += *(uintptr_t*)((char*)(&peb) + 0x8);
+    *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x8);
 #else
-    (*p_entrypoint) += *(uintptr_t*)((char*)(&peb) + 0x10);
+    *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x10);
 #endif
 
-    ReadProcessMemory(procinfo.hProcess, *p_entrypoint, original_bytes, 2, NULL);
-    WriteProcessMemory(procinfo.hProcess, *p_entrypoint, selfjump, 2, NULL);
+    ReadProcessMemory(procinfo.hProcess, entrydata->entry, entrydata->bytes, 2, NULL);
+    WriteProcessMemory(procinfo.hProcess, entrydata->entry, selfjump, 2, NULL);
 
     if(extended_info != NULL) {
         extended_info->si  = startinfo;
         extended_info->pi  = procinfo;
         extended_info->pbi = pbi;
-        extended_info->peb = peb;
+        extended_info->peb = (void*)pbi.PebBaseAddress;
     }
 
     ResumeThread(procinfo.hThread);
@@ -283,12 +286,12 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
     return 0;
 }
 
-void hijack_entry_point_ex(const char* executable, HANDLE hProcess, void** p_entrypoint, char* original_bytes) {
-    find_entry_point(executable, p_entrypoint);
+void hijack_entry_point_ex(const char* executable, HANDLE hProcess, EntryData* entrydata) {
+    find_entry_point(executable, &entrydata->entry);
     char selfjump[2] = {0xEB, 0xFE};
 
-    ReadProcessMemory(hProcess, *p_entrypoint, original_bytes, 2, NULL);
-    WriteProcessMemory(hProcess, *p_entrypoint, selfjump, 2, NULL);
+    ReadProcessMemory(hProcess, entrydata->entry, entrydata->bytes, 2, NULL);
+    WriteProcessMemory(hProcess, entrydata->entry, selfjump, 2, NULL);
 
     CloseHandle(hProcess);
 }
@@ -318,7 +321,6 @@ uint32_t find_entry_point(const char* executable, void** entrypoint){
     PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)lpBase;
     if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
         return 5;
-
 #ifndef _WIN64
     PIMAGE_NT_HEADERS32 ntHeader = (PIMAGE_NT_HEADERS32)(lpBase + dosHeader->e_lfanew);
 #else
@@ -363,8 +365,7 @@ bool is_module_loaded(HANDLE process, const char* module_name, HMODULE* module){
     return false;
 }
 
-bool is_wow64(HANDLE hProcess)
-{
+bool is_wow64(HANDLE hProcess) {
     BOOL bIsWow64 = false;
 
     SYSTEM_INFO si = {0};
@@ -373,4 +374,23 @@ bool is_wow64(HANDLE hProcess)
         IsWow64Process(hProcess, &bIsWow64);
 
     return bIsWow64;
+}
+
+bool remove_from_loaded_modules(const char* dllname){
+    PPEB peb = GetPEB();
+
+    LIST_ENTRY* first_module = PTROFFSET(peb->Ldr->InMemoryOrder.Flink, -sizeof(LIST_ENTRY));
+    for(LIST_ENTRY* module = first_module->Flink; module && module != first_module; module = module->Flink) {
+        LDR_DATA_TABLE_ENTRY* moduleEntry = (LDR_DATA_TABLE_ENTRY*) module;
+        char msg[MAX_PATH];
+        wcstombs(msg, moduleEntry->FullDllName.Buffer, sizeof(msg));
+        if(strcmp(dllname, msg) == 0) {
+            patch_linked_list(&moduleEntry->InLoadOrder, false);
+            patch_linked_list(&moduleEntry->InMemOrder, false);
+            patch_linked_list(&moduleEntry->InInitOrder, false);
+            return true;
+        }
+    }
+
+    return false;
 }

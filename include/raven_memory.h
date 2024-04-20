@@ -13,9 +13,6 @@
  */
 #define PTROFFSET(ptr, offset) ((void*)(((uintptr_t)(ptr)) + ((intptr_t)(offset))))
 
-#define MEMORY_BLOCK_SIZE 0x1000
-#define MAX_MEMORY_RANGE 0x40000000
-
 typedef struct {
     void* base_address;
     int total_offsets;
@@ -97,12 +94,11 @@ bool pointer_valid(void* ptr, uint32_t size);
 /**
  * @brief Finds a memory region in proximity to the base with unallocated memory
  * 
- * @param base         [in] The base address
- * @param desired_size [in] The desired size of the memory region
- * @param range        [in] The range 
+ * @param base [in] The base address
+ * @param size [in] The desired size of the memory region
  * 
  * @returns The address of the unallocated memory 
  */
-void* find_unallocated_memory(void* base);
+void* find_unallocated_memory(void* base, size_t size);
 
 #endif

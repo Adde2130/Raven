@@ -8,18 +8,38 @@
 #include <winternl.h>
 #include <ks.h>
 
+// PEB REFERENCE: https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm
+
 typedef struct {
     HANDLE hModule;
+    char* dllname;
+} ModuleData;
+
+typedef struct {
     void* entry;
     char bytes[2];
 } EntryData;
 
 typedef struct {
+    ModuleData mData;
+    EntryData eData;
+} RavenInjectionData;
+
+typedef struct {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
     PROCESS_BASIC_INFORMATION pbi;
-    PEB peb;
+    PPEB peb;
 } RAVEN_PROCESS_INFO;
+
+/**
+ * @brief Get the current process PEB
+ * 
+ * @returns A pointer to the current process PEB
+ */
+static inline void* GetPEB() {
+    return NtCurrentTeb()->ProcessEnvironmentBlock;
+}
 
 /**
  * Gets the id of the given process.
@@ -46,16 +66,17 @@ bool inject_dll(const char* dllname, int pid);
  *        and requires the DLL to have a DWORD WINAPI RavenLoader(LPVOID) function to call instead in order
  *        to handle the data and create the main thread. If the main thread is created
  *        in PROCESS_ATTACH under DllMain, then the thread will be created in the injector
- *        and the process will crash. The first value in the data MUST be an empty spot for a HANDLE
+ *        and the process will crash. If you wish to send any additional data, make sure the base
+ *        of the struct contains a RavenInjectionData struct.
  * 
  * @param dllname  [in]           The name of the dll
  * @param pid      [in]           The process ID
- * @param data     [in, optional] The data sent to the DLL 
+ * @param data     [in, optional] The data sent to the DLL.
  * @param datasize [in, optional] The size of the data sent to the DLL
  * 
  * @return 0 if the code succeeds, otherwise _________
  */
-uint8_t inject_dll_ex(const char* dllname, int pid, void* data, size_t datasize);
+uint8_t inject_dll_ex(const char* dllname, int pid, RavenInjectionData* data, size_t datasize);
 
 
 /**
@@ -87,7 +108,6 @@ void repair_entry(EntryData* data);
  * @param argv           [in, optional]  The arguments
  * @param current_dir    [in, optional]  The directory the executable will be started in
  * @param p_entrypoint   [out]           The address of the entrypoint
- * @param original_bytes [out]           The 2 bytes originally at the entry point
  * @param extended_info  [out, optional] Additional info about the process
  * 
  * @return 0 if the code succeeds, otherwise _________
@@ -96,7 +116,7 @@ void repair_entry(EntryData* data);
  *          EnumProcessModules fails. This is a bit inconsistent. TODO: Make the function know
  *          when all DLLs are loaded and THEN suspend it.
  */
-int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, void** p_entrypoint, char* original_bytes, RAVEN_PROCESS_INFO* extended_info);
+int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, EntryData* entrydata, RAVEN_PROCESS_INFO* extended_info);
 
 /**
  * @brief Alternate version where you need to create the process in suspended state and
@@ -107,7 +127,7 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
  * @param p_entrypoint   [out] The address of the entrypoint
  * @param original_bytes [out] The original bytes
  */
-void hijack_entry_point_ex(const char* executable, HANDLE hProcess, void** p_entrypoint, char* original_bytes);
+void hijack_entry_point_ex(const char* executable, HANDLE hProcess, EntryData* entrydata);
 
 /**
  * @brief Get the address of the function within the library
@@ -127,5 +147,13 @@ void* GetModuleFunction(const char* lib, const char* function_name);
  * @remarks This is a wrapper for IsWow64Process
  */
 bool is_wow64(HANDLE hProcess);
+
+/**
+ * @brief Removes the module from the process' loaded modules list without unloading it
+ * 
+ * @param dllname [in] The base name of the DLL to remove
+ * @returns Whether or not the removal succeeded
+ */
+bool remove_from_loaded_modules(const char* dllname);
 
 #endif

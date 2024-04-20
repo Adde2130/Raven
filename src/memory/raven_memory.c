@@ -2,6 +2,17 @@
 #include "raven_debug.h"
 #include <intrin.h>
 
+#define MEMBLOCK_SIZE 0x1000
+#define MAX_MEMORY_RANGE 0x40000000
+
+
+typedef struct _MEMBLOCK {
+    struct _MEMBLOCK* next;
+    size_t bytes_used;
+} MEMBLOCK;
+
+MEMBLOCK* MEMBLOCK_HEAD = NULL;
+
 bool pointer_valid(void* ptr, uint32_t size) {
     if(ptr == NULL) return false;
     MEMORY_BASIC_INFORMATION mbi = {0};
@@ -85,7 +96,7 @@ void* __find_next_mem_region(void* base, void* max_addr, DWORD granularity) {
     return NULL;
 }
 
-void* find_unallocated_memory(void* base) {
+void* find_unallocated_memory(void* base, size_t size) {
     void* min_addr;
     void* max_addr;
 
@@ -101,7 +112,23 @@ void* find_unallocated_memory(void* base) {
     if(max_addr > PTROFFSET(base, MAX_MEMORY_RANGE))
         max_addr = PTROFFSET(base, MAX_MEMORY_RANGE);
 
-    max_addr = PTROFFSET(max_addr, -MEMORY_BLOCK_SIZE + 1);
+    max_addr = PTROFFSET(max_addr, -MEMBLOCK_SIZE + 1);
+
+    MEMBLOCK* memblock = NULL;
+    MEMBLOCK* last_memblock = NULL;
+    if(MEMBLOCK_HEAD) {
+        for(last_memblock = MEMBLOCK_HEAD; last_memblock->next; last_memblock = last_memblock->next){
+            if(MEMBLOCK_SIZE - last_memblock->bytes_used < size)
+                continue;
+
+            memblock = PTROFFSET(last_memblock, last_memblock->bytes_used);
+            if((uintptr_t)memblock < (uintptr_t)min_addr || (uintptr_t)memblock > (uintptr_t)max_addr)
+                continue;
+
+            last_memblock->bytes_used += size;
+            return memblock;
+        }
+    }
 
     void* curr_addr = base;
     while (curr_addr >= min_addr) {
@@ -109,9 +136,9 @@ void* find_unallocated_memory(void* base) {
         if (curr_addr == NULL)
             break;
 
-        void* memblock = VirtualAlloc(curr_addr, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-        if (memblock != NULL)        
-            return memblock;
+        memblock = VirtualAlloc(curr_addr, MEMBLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (memblock)        
+            goto INIT_MEMBLOCK;
     }
 
     curr_addr = base;
@@ -120,13 +147,20 @@ void* find_unallocated_memory(void* base) {
         if (curr_addr == NULL)
                 break;
 
-        void* memblock = VirtualAlloc(curr_addr, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-        if (memblock != NULL)
-            return memblock;
+        memblock = VirtualAlloc(curr_addr, MEMBLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (memblock)
+            goto INIT_MEMBLOCK;
     }
 
     return NULL;
+
+INIT_MEMBLOCK:
+    if(last_memblock)
+        last_memblock->next = memblock;
     
+    memblock->next = NULL;
+    memblock->bytes_used = sizeof(MEMBLOCK*) + sizeof(size_t) + size;
+    return PTROFFSET(memblock, memblock->bytes_used);
 }
 
 void protected_write(void* dest, const void* src, int len){

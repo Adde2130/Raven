@@ -12,4 +12,12 @@
  */
 char* wstr_to_str(LPCWSTR str);
 
+/**
+ * @brief Removes the list entry from the linked list it belongs to
+ * 
+ * @param list             [in] The entry to remove
+ * @param protected_memory [in] Whether or not the memory region has protection
+ */
+void patch_linked_list(LIST_ENTRY* list, bool protected_memory);
+
 #endif
