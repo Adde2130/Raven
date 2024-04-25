@@ -29,9 +29,7 @@ Vector* vector_create(uint32_t vector_size, uint32_t item_size) {
 
 void vector_free(Vector* vec) {
     free(vec->items);
-    vec->items = NULL;
     free(vec);
-    vec = NULL;
 }
 
 void vector_add(Vector* vec, void* item) {

@@ -3,7 +3,27 @@
 
 #include "types.h"
 
-// REFERENCE: http://ref.x86asm.net/coder32.html
+// REFERENCE: 32-bit: http://ref.x86asm.net/coder32.html
+//            64-bit: http://ref.x86asm.net/coder64.html
+
+
+
+
+/*  ------------------------ MODR/M ------------------------
+
+    _______________________________________________________
+   |  Bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0  |
+   | Usage |    MOD    | REG/OPCODE EXTENSION  |    RM     |
+    ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+
+        Reference: https://en.wikipedia.org/wiki/ModR/M 
+*/
+
+
+
+
+
+
 
 /* --------------- x86 ASM OPCODES --------------- */
 #define NOP       0x90
@@ -42,7 +62,7 @@
 #define REX5      0x45
 #define REX6      0x46
 #define REX7      0x47
-#define REX8      0x48 // Make the operand 64 bit
+#define REX8      0x48 
 #define REX9      0x49
 #define REXA      0x4A
 #define REXB      0x4B

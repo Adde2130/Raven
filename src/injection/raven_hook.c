@@ -4,6 +4,7 @@
 #include "raven_debug.h"
 #include "raven_assembly.h"
 #include "raven_hook.h"
+#include "raven_binary.h"
 
 void* __create_start_relay(void* start_address, void* destination_address){
     byte_t bytes[] = {
@@ -13,6 +14,8 @@ void* __create_start_relay(void* start_address, void* destination_address){
     };
 
     void* relay_address = find_unallocated_memory(start_address, sizeof(bytes));
+    if(!relay_address)
+            return NULL;
 
     memcpy(bytes + 3, &destination_address, 8);
     memcpy(relay_address, bytes, sizeof(bytes));
@@ -26,8 +29,9 @@ void* __create_end_relay(void* destination_address) {
         JMP_REL32, 0x00, 0x00, 0x00, 0x00
     };
 
-
     void* relay_address = find_unallocated_memory(destination_address, sizeof(bytes));
+    if(!relay_address)
+        return NULL;
 
     int32_t jmp_target = (intptr_t)destination_address - (intptr_t)relay_address - sizeof(bytes);
 
@@ -37,14 +41,15 @@ void* __create_end_relay(void* destination_address) {
     return relay_address;
 }
 
-bool hook_function(void* target_func, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes) {
+uint8_t hook_function(void* target_func, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes) {
     const byte_t JMP_REL32_CONST = JMP_REL32;
+    const byte_t NOP_CONST = NOP;
 
     const size_t jmpsize = 5;
     bool relay = false;
 
     if(!target_func || !pointer_valid(target_func, jmpsize))
-        return false;
+        return HOOK_INVALID_TARGET;
 
     if(original_bytes != NULL)
         memcpy(original_bytes, target_func, jmpsize + mangled_bytes);
@@ -53,9 +58,9 @@ bool hook_function(void* target_func, void* new_func, void** func_trampoline, ui
         relay = true;
 
     if(func_trampoline != NULL) {
-        *func_trampoline = VirtualAlloc(PTROFFSET(target_func, MAX_REL_JMP), jmpsize + mangled_bytes + jmpsize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        *func_trampoline = find_unallocated_memory(target_func, jmpsize + mangled_bytes + jmpsize);
         if(!*func_trampoline)
-            return false;
+            return HOOK_INVALID_TRAMPOLINE;
         
         uint64_t trampoline_jmp_target = (intptr_t)target_func - (intptr_t)*func_trampoline - jmpsize;
 
@@ -67,14 +72,22 @@ bool hook_function(void* target_func, void* new_func, void** func_trampoline, ui
     } 
 
     if(relay) {
+        //TODO: Create relays using code caves if unallocated memory can't be found
         new_func = __create_end_relay(new_func);
+        if(!new_func)
+            return HOOK_CANNOT_CREATE_END_RELAY;
+
         new_func = __create_start_relay(target_func, new_func);
+        if(!new_func)
+            return HOOK_CANNOT_CREATE_START_RELAY;
     }
 
     intptr_t relative_jmp_offset = (intptr_t)new_func - (intptr_t)target_func - jmpsize;
 
     protected_write(target_func, &JMP_REL32_CONST, 1); 
     protected_write(PTROFFSET(target_func, 1), &relative_jmp_offset, 4);
+    for(int i = 0; i < mangled_bytes; i++)
+        protected_write(PTROFFSET(target_func, jmpsize + i), &NOP_CONST, 1);
 
-    return true;
+    return 0;
 }

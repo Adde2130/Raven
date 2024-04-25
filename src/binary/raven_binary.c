@@ -2,6 +2,7 @@
 #include "raven_memory.h"
 #include "raven_assembly.h"
 #include "raven_debug.h"
+#include "raven_proc_tools.h"
 
 #include <stdio.h>
 #include <Psapi.h>
@@ -18,9 +19,13 @@ void create_detour(void* dest, void* patch, uint32_t leftover_bytes){
     free(patch_bytes);
 }
 
-void* find_code_cave(const size_t desired_size, const HANDLE hModule, const void* address) {
-    if(!desired_size || !hModule)
+void* find_code_cave(const size_t desired_size, HANDLE hModule, void* address) {
+    if(!desired_size || (!hModule && !address))
         return NULL;
+
+    if(!hModule)
+        hModule = module_from_address(address);
+
 
     HANDLE hProcess = GetCurrentProcess();
 

@@ -394,3 +394,32 @@ bool remove_from_loaded_modules(const char* dllname){
 
     return false;
 }
+
+HANDLE module_from_address(void* address){
+    HMODULE hModule = NULL;
+    DWORD cbNeeded;
+    HANDLE hProcess = GetCurrentProcess();
+
+    HMODULE* hModuleArray = (HMODULE*)malloc(cbNeeded);
+    if (!hModuleArray) 
+        return NULL;
+    
+    if (!EnumProcessModules(hProcess, hModuleArray, cbNeeded, &cbNeeded)) {
+        free(hModuleArray);
+        return NULL;
+    }
+
+    for (DWORD i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
+        MODULEINFO moduleInfo;
+        if (!GetModuleInformation(hProcess, hModuleArray[i], &moduleInfo, sizeof(MODULEINFO))) 
+            continue;
+
+        if ((uintptr_t)address >= (uintptr_t)moduleInfo.lpBaseOfDll &&
+            (uintptr_t)address < ((uintptr_t)moduleInfo.lpBaseOfDll + moduleInfo.SizeOfImage)) {
+            hModule = hModuleArray[i];
+            break;
+        }
+    }
+
+    return hModule;
+}

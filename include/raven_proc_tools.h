@@ -156,4 +156,12 @@ bool is_wow64(HANDLE hProcess);
  */
 bool remove_from_loaded_modules(const char* dllname);
 
+/**
+ * @brief Returns a handle to the module which the address belongs to
+ * 
+ * @param address The address to query the module for
+ * @return HANDLE 
+ */
+HANDLE module_from_address(void* address);
+
 #endif

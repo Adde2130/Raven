@@ -10,9 +10,11 @@
 #define FUNCTION_RETURN_ADDRESS (_ReturnAddress())
 #endif
 
-#define RAVENRELAY(relay_name) __attribute__((__used__, naked)) void __##relay_name##_relay() { \
-                                                                    __asm__(".byte 0x90"); \
-                                                                }
+/* ----------- HOOK ERROR TABLE ----------- */
+#define HOOK_INVALID_TARGET            1
+#define HOOK_INVALID_TRAMPOLINE        2
+#define HOOK_CANNOT_CREATE_START_RELAY 3
+#define HOOK_CANNOT_CREATE_END_RELAY   4
 
 #define MAX_REL_JMP 2147483647
 
@@ -23,14 +25,14 @@
  *        RAVENRELAY specifier before it.
  * 
  * @param target_func     [in]            The address of the function to hook.
- * @param new_func        [in]            Your new function which will replace the original
+ * @param new_func        [in]            Your new function which will replace the original.
  * @param func_trampoline [out, optional] A pointer which will contain the function trampoline.
  * @param mangled_bytes   [in,  optional] The bytes mangled from the jump instruction.
- * @param original_bytes  [out, optional] The original bytes for unhooking the instruction. This should be at least 5 bytes + the amount of mangled bytes
+ * @param original_bytes  [out, optional] The original bytes for unhooking the instruction. This should be at least 5 bytes + the amount of mangled bytes.
  * 
- * @returns false if the hook failed (and the program didn't crash lol), otherwise true
+ * @returns 0 If the function succeeds. Otherwise, see the hook error table.
  */
-bool hook_function(void* target_func, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes);
+uint8_t hook_function(void* target_func, void* new_func, void** func_trampoline, uint8_t mangled_bytes, uint8_t* original_bytes);
 
 
 
