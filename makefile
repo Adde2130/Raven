@@ -53,7 +53,7 @@ LDFLAGS := -lpsapi -lshlwapi -lntdll -lgdi32
 
 .PHONY: all clean
 
-all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
+all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) # $(LIB32) $(LIB64)
 	@echo "Successfully built Raven"
 
 $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR):
@@ -81,13 +81,14 @@ $(TARGET32): $(OBJS_32)
 $(TARGET64): $(OBJS_64)
 	$(ECHO)$(CXX64) -shared $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
 
-$(LIB32): $(OBJS_32)
-	$(ECHO)$(AR32) rcs $@ $^
-	$(ECHO)$(RANLIB32) $@
-
-$(LIB64): $(OBJS_64)
-	$(ECHO)$(AR64) rcs $@ $^
-	$(ECHO)$(RANLIB64) $@
+# Right now, static compilation doesn't work because of NtQueryProcessInformation
+# $(LIB32): $(OBJS_32)
+# 	$(ECHO)$(AR32) rcs $@ $^
+# 	$(ECHO)$(RANLIB32) $@
+# 
+# $(LIB64): $(OBJS_64)
+# 	$(ECHO)$(AR64) rcs $@ $^
+# 	$(ECHO)$(RANLIB64) $@
 
 clean:
 	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)

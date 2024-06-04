@@ -1,18 +1,19 @@
 MODULE_NAME = RavenPy
 SRCDIR = src
 OBJDIR = obj
-INCDIR = "E:/Visual Studio Code Workspace/Raven/include"
+INCDIR = include 
+RAVENINC = ../include
 SRC = $(wildcard $(SRCDIR)/*.c)
 OBJ = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRC))
 SHARED_OBJ = $(MODULE_NAME).pyd
 
-PYTHON_PATH = "C:\Users\andsa\AppData\Local\Programs\Python\Python311"
+PYTHON_PATH = "C:/Users/Adde/AppData/Local/Programs/Python/Python311"
 PY_INCLUDE = $(PYTHON_PATH)/include
-PY_LIB = $(PYTHON_PATH)/libs
+PY_LIB = $(PYTHON_PATH)
 
-CC = gcc
-CFLAGS = -Wall -fPIC -I$(PY_INCLUDE) -I$(INCDIR)
-LDFLAGS = -L$(PY_LIB) -lpython311 -L. -lRaven64
+CC = C:/msys64/mingw64/bin/gcc
+CFLAGS = -Wall -fPIC -D MS_WIN64 -O3 -I$(PY_INCLUDE) -I$(INCDIR) -I$(RAVENINC)
+LDFLAGS =  -lpsapi -lshlwapi -lntdll -lshlwapi -lshell32 -L$(PY_LIB) -lpython311 -L../lib -lRaven64
 
 all: $(SHARED_OBJ)
 

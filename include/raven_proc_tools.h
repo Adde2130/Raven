@@ -1,7 +1,7 @@
 #ifndef RAVEN_PROC_TOOLS_H
 #define RAVEN_PROC_TOOLS_H
 
-#include <windows.h>
+#include "raven_windows_internal.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <Psapi.h>
@@ -29,7 +29,7 @@ typedef struct {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
     PROCESS_BASIC_INFORMATION pbi;
-    PPEB peb;
+    PEB peb;
 } RAVEN_PROCESS_INFO;
 
 /**

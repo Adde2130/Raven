@@ -1,13 +1,18 @@
-#ifndef RAVEN_WINDOWS_STRUCT
-#define RAVEN_WINDOWS_STRUCT
+#ifndef RAVEN_WINDOWS_INTERNAL
+#define RAVEN_WINDOWS_INTERNAL
 
 #include <windows.h>
+#include <winternl.h>
 #include <subauth.h>
 #include <stdint.h>
 
-
 /* ----------------- LDR DDAG NODE ----------------- */
 // LDR_DDAG_NODE REFERENCE: https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/ntldr/ldr_ddag_node.htm
+#ifdef LDR_DDAG_NODE
+#undef LDR_DDAG_NODE
+#undef PLDR_DDAG_NODE
+#endif
+
 #define LDR_DDAG_NODE RAVEN_LDR_DDAG_NODE
 #define PLDR_DDAG_NODE PRAVEN_LDR_DDAG_NODE
 typedef struct {
@@ -31,6 +36,11 @@ typedef struct {
 /* -------------- LDR DATA TABLE ENTRY --------------*/
 // PEB_LOADER REFERENCE: 1. http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
 //                       2. https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/ntldr/ldr_data_table_entry/index.htm
+#ifdef LDR_DATA_TABLE_ENTRY
+#undef LDR_DATA_TABLE_ENTRY
+#undef PLDR_DATA_TABLE_ENTRY
+#endif
+
 #define LDR_DATA_TABLE_ENTRY RAVEN_LDR_DATA_TABLE_ENTRY
 #define PLDR_DATA_TABLE_ENTRY PRAVEN_LDR_DATA_TABLE_ENTRY
 typedef struct {
@@ -70,12 +80,16 @@ typedef struct {
     void* SwitchBackContext;
 } RAVEN_LDR_DATA_TABLE_ENTRY, *PRAVEN_LDR_DATA_TABLE_ENTRY;
 
-
 /* ------------------ PEB LDR DATA ------------------*/
 // PEB_LOADER REFERENCE: http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
+#ifdef PEB_LDR_DATA
+#undef PEB_LDR_DATA
+#undef PPEB_LDR_DATA
+#endif
+
 #define PEB_LDR_DATA RAVEN_PEB_LDR_DATA
 #define PPEB_LDR_DATA PRAVEN_PEB_LDR_DATA
-typedef struct {
+typedef struct _RAVEN_PEB_LDR_DATA {
     uint32_t Length;
     uint8_t Initialized[4];
     uint32_t SsHandle;
@@ -88,9 +102,13 @@ typedef struct {
     uint8_t EntryInProgrss;
 } RAVEN_PEB_LDR_DATA, *PRAVEN_PEB_LDR_DATA;
 
-
 /* ---------------------- PEB ----------------------*/
 // PEB REFERENCE: https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm
+#ifdef PEB
+#undef PEB
+#undef PPEB
+#endif
+
 #define PEB RAVEN_PEB
 #define PPEB PRAVEN_PEB
 typedef struct {

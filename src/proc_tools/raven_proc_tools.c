@@ -262,26 +262,30 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
         return 3;
     }
     
-    /* This is supposed to hold the base address but it may change due to windows updates :/ */
-#ifndef _WIN64
-    *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x8);
-#else
-    *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x10);
-#endif
+    *(uintptr_t*)(&entrydata->entry) += (uintptr_t)peb.ImageBaseAddress;
+
+    /* RE-ENABLE IF SOMETHING BREAKS */
+//     /* This is supposed to hold the base address but it may change due to windows updates :/ */
+// #ifndef _WIN64
+//     *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x8);
+// #else
+//     *(uintptr_t*)(&entrydata->entry) += *(uintptr_t*)((char*)(&peb) + 0x10);
+// #endif
 
     ReadProcessMemory(procinfo.hProcess, entrydata->entry, entrydata->bytes, 2, NULL);
     WriteProcessMemory(procinfo.hProcess, entrydata->entry, selfjump, 2, NULL);
+
+    ResumeThread(procinfo.hThread);
 
     if(extended_info != NULL) {
         extended_info->si  = startinfo;
         extended_info->pi  = procinfo;
         extended_info->pbi = pbi;
-        extended_info->peb = (void*)pbi.PebBaseAddress;
+        extended_info->peb = peb;
+    } else {
+        CloseHandle(procinfo.hProcess);
+        CloseHandle(procinfo.hThread);
     }
-
-    ResumeThread(procinfo.hThread);
-    CloseHandle(procinfo.hProcess);
-    CloseHandle(procinfo.hThread);
 
     return 0;
 }
