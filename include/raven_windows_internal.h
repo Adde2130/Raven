@@ -94,7 +94,8 @@ typedef struct _RAVEN_PEB_LDR_DATA {
     uint8_t Initialized[4];
     uint32_t SsHandle;
 
-    // Linked lists to modules loaded
+    /* Linked lists to modules loaded, */
+    /* each is a LDR_DATA_TABLE_ENTRY  */
     LIST_ENTRY InLoadOrder; 
     LIST_ENTRY InMemoryOrder;
     LIST_ENTRY InInitOrder;
@@ -124,7 +125,7 @@ typedef struct {
 
     HANDLE Mutant;
     void* ImageBaseAddress;
-    PRAVEN_PEB_LDR_DATA Ldr;
+    PEB_LDR_DATA* Ldr;
     void* ProcessParameters; // RTL_USER_PROCESS_PARAMETERS struct, see reference
     void* SubSystemData;
     void* ProcessHeap;

@@ -1,6 +1,7 @@
 @echo off
 
 rem Run make in the current directory
+echo Building Raven...
 make
 
 rem Check if compilation succeeded
