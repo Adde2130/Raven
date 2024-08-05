@@ -10,19 +10,28 @@
 #define FUNCTION_RETURN_ADDRESS (_ReturnAddress())
 #endif
 
+
+/* Macro to define the function pointer type, trampoline, and hook function */
+#define CREATE_HOOK(name, address, rettype, callconv, ...)                   \
+    void* name##_address = (void*) address;                                 \
+    typedef rettype (callconv *p##name)(__VA_ARGS__);                       \
+    p##name name##_trampoline = NULL;                                       \
+    rettype callconv name##_hook(__VA_ARGS__)
+
+
 /* ----------- HOOK ERROR TABLE ----------- */
 #define HOOK_INVALID_TARGET            1
 #define HOOK_INVALID_TRAMPOLINE        2
 #define HOOK_CANNOT_CREATE_START_RELAY 3
 #define HOOK_CANNOT_CREATE_END_RELAY   4
+/* ---------------------------------------- */
 
 #define MAX_REL_JMP 2147483647
 
 /**
  *        
  * @brief Hooks the specified function in the current process. If the new func is more than
- *        2GB of ram away, a relay function is created, which requires the hook to have a
- *        RAVENRELAY specifier before it.
+ *        2GB of ram away, a relay function is created.
  * 
  * @param target_func     [in]            The address of the function to hook.
  * @param new_func        [in]            Your new function which will replace the original.

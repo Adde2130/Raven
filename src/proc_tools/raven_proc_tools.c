@@ -147,8 +147,8 @@ uint8_t inject_dll_ex(const char* dllname, int pid, RavenInjectionData* data, si
 
 #ifndef _WIN64
     DWORD hInjectedDll;
-    GetExitCodeThread(LoadLibraryThread, &hInjectedDll);
-    if(!hInjectedDll) {
+    success = GetExitCodeThread(LoadLibraryThread, &hInjectedDll);
+    if(!success || !hInjectedDll) {
         FreeLibrary(hDll);
         return 10;
     }
@@ -232,10 +232,10 @@ int8_t hijack_entry_point(const char* executable, int argc, const char** argv, c
 
     char cmdLine[512];
     sprintf(cmdLine, "\"%s\"", executable);
-    if(argv != NULL && argc != 0){
+    if(argv != NULL)
         for(int i = 0; i < argc; i++)
             sprintf(cmdLine + strlen(cmdLine), " %s", argv[i]);
-    }
+    
 
     if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, current_dir, &startinfo, &procinfo) || procinfo.hProcess == INVALID_HANDLE_VALUE || !procinfo.hProcess) {
         return 1;

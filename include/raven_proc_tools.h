@@ -112,10 +112,10 @@ void repair_entry(EntryData* data);
  * 
  * @return 0 if the code succeeds, otherwise _________
  * 
- * @remarks Right now, this function waits for everything to be initialized by sleeping while
- *          EnumProcessModules fails. This is a bit inconsistent. TODO: Make the function know
- *          when all DLLs are loaded and THEN suspend it.
- */
+ * @remarks  This writes a self-jump at the entry point found in the PEB. This will ensure
+ 			 that all vital modules are loaded before execution. You have to manually resume 
+ 			 the process by rewriting the original bytes to the entrypoint, which is provided
+ 			 by the entrydata structure. */
 int8_t hijack_entry_point(const char* executable, int argc, const char** argv, const char* current_dir, EntryData* entrydata, RAVEN_PROCESS_INFO* extended_info);
 
 /**
