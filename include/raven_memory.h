@@ -70,8 +70,18 @@ void  protected_write(void* dest, const void* src, int len);
  */
 void  protected_fill_bytes(void* dest, const char byte, int len);
 
-void  read_bytes(void* src, void* read_buffer, int len);
-void  write_bytes(void* src, void* dest, int len);
+
+void raven_write8(void* dest, uint8_t value);
+void raven_write16(void* dest, uint16_t value);
+void raven_write32(void* dest, uint32_t value);
+
+/**
+ * @brief Write NOPs into the target destination.
+ *
+ * @param dest  [in] The desttination to patch.
+ * @param count [in] The amount of NOPs to write.
+ */
+void raven_nop(void* dest, uint32_t count);
 
 /**
  * @brief Writes the patch to memory of the executable

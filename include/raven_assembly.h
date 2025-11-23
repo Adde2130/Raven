@@ -23,12 +23,12 @@
 
 
 
-
-
 /* --------------- x86 ASM OPCODES --------------- */
 #define NOP       0x90
 #define INT3      0xCC
 #define JMP_REL32 0xE9
+#define RET_N	  0xC2
+#define RET		  0xC3
 
 
 /* ------------ INC 32-BIT ------------ */
@@ -111,6 +111,8 @@
 #define POP_RSI   0x5E
 #define POP_RDI   0x5F
 
+#define PUSHAD	  0x60
+#define POPAD	  0x61
 
 /* -------------- MOV -------------- */
 #define MOV_AL    0xB0
@@ -131,8 +133,24 @@
 #define MOV_ESI   0xBE
 #define MOV_EDI   0xBF
 
+
+#define CALL	  0xE8
+
+
 #define MODRM     0xFF
 
 #define ISGARBAGE(x) ((x == INT3) || (x == NOP))
+
+#define MAX_REL_JMP 2147483647
+
+void resolve_mangled_bytes(void* original_address, void* target_address, uint8_t byte_count, byte_t* mangled_bytes);
+
+/**
+ * @brief Creates a relative JMP instruction at the target.
+ *
+ * @param [in] from	  From where to jump
+ * @param [in] to     Where to jump
+ */
+uint8_t raven_jmp(void* from, void* to);
 
 #endif

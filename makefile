@@ -7,59 +7,58 @@ ECHO := @
 endif
 
 SRC_DIR := src
+VENDOR_DIR := vendor
 BUILD_DIR_32 := build32
 BUILD_DIR_64 := build64
-INCLUDE := include $(dir $(wildcard $(SRC_DIR)/*)) $(dir $(wildcard $(SRC_DIR)/*/*)) 
-
-# Separate C and C++ source files
-C_SRCS := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*/*.c)
-CPP_SRCS := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/*/*.cpp)
-
-# Separate C and C++ object files for 32-bit and 64-bit
-C_OBJS_32 := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR_32)/%.o,$(C_SRCS))
-CPP_OBJS_32 := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR_32)/%.o,$(CPP_SRCS))
-C_OBJS_64 := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR_64)/%.o,$(C_SRCS))
-CPP_OBJS_64 := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR_64)/%.o,$(CPP_SRCS))
-
-# All object files for 32-bit and 64-bit
-OBJS_32 := $(C_OBJS_32) $(CPP_OBJS_32)
-OBJS_64 := $(C_OBJS_64) $(CPP_OBJS_64)
-
-# Target DLL and LIB
 LIB_DIR := lib
+
+INCLUDE := include $(dir $(wildcard $(SRC_DIR)/*/*)) $(dir $(wildcard $(VENDOR_DIR)/*/*))
+
+# All source files
+SRCS := $(wildcard $(SRC_DIR)/*/*.c) $(wildcard $(VENDOR_DIR)/*/*.c)
+
+# Object files with subdirectory structure preserved
+OBJS_32 := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR_32)/%.o,$(SRCS))
+OBJS_32 := $(patsubst $(VENDOR_DIR)/%.c,$(BUILD_DIR_32)/%.o,$(OBJS_32))
+
+OBJS_64 := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR_64)/%.o,$(SRCS))
+OBJS_64 := $(patsubst $(VENDOR_DIR)/%.c,$(BUILD_DIR_64)/%.o,$(OBJS_64))
+
+# Targets
 TARGET32 := $(LIB_DIR)/Raven32.dll
 TARGET64 := $(LIB_DIR)/Raven64.dll
 LIB32 := $(LIB_DIR)/libRaven32.a
 LIB64 := $(LIB_DIR)/libRaven64.a
 
 # MinGW Paths
-MINGW32_PATH := C:/msys64/mingw32/bin
-MINGW64_PATH := C:/msys64/mingw64/bin
+MINGW32_PATH := C:/mingw32/bin
+MINGW64_PATH := C:/mingw64/bin
 
 # Compilers
 CC32 := $(MINGW32_PATH)/gcc
 CC64 := $(MINGW64_PATH)/gcc
-CXX32 := $(MINGW32_PATH)/g++
-CXX64 := $(MINGW64_PATH)/g++
 AR32 := $(MINGW32_PATH)/ar
 AR64 := $(MINGW64_PATH)/ar
 RANLIB32 := $(MINGW32_PATH)/ranlib
 RANLIB64 := $(MINGW64_PATH)/ranlib
 
-
-CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE)) -static
-CXXFLAGS := $(CFLAGS) -static-libgcc -static-libstdc++
-LDFLAGS := -lpsapi -lshlwapi -lntdll -lgdi32
+CFLAGS := -g -Wall -Wextra -O0 $(addprefix -I,$(INCLUDE))
+LDFLAGS := -static -lpsapi -lshlwapi -lntdll -lgdi32
 
 .PHONY: all clean
 
-all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) # $(LIB32) $(LIB64)
+all: $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
 	@echo "Successfully built Raven"
 
 $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR):
 	$(ECHO)mkdir -p $@
 
+# Compile rules
 $(BUILD_DIR_32)/%.o: $(SRC_DIR)/%.c
+	$(ECHO)mkdir -p $(dir $@)
+	$(ECHO)$(CC32) $(CFLAGS) -m32 -c $< -o $@
+
+$(BUILD_DIR_32)/%.o: $(VENDOR_DIR)/%.c
 	$(ECHO)mkdir -p $(dir $@)
 	$(ECHO)$(CC32) $(CFLAGS) -m32 -c $< -o $@
 
@@ -67,28 +66,26 @@ $(BUILD_DIR_64)/%.o: $(SRC_DIR)/%.c
 	$(ECHO)mkdir -p $(dir $@)
 	$(ECHO)$(CC64) $(CFLAGS) -m64 -c $< -o $@
 
-$(BUILD_DIR_32)/%.o: $(SRC_DIR)/%.cpp
+$(BUILD_DIR_64)/%.o: $(VENDOR_DIR)/%.c
 	$(ECHO)mkdir -p $(dir $@)
-	$(ECHO)$(CXX32) $(CXXFLAGS) -m32 -c $< -o $@
+	$(ECHO)$(CC64) $(CFLAGS) -m64 -c $< -o $@
 
-$(BUILD_DIR_64)/%.o: $(SRC_DIR)/%.cpp
-	$(ECHO)mkdir -p $(dir $@)
-	$(ECHO)$(CXX64) $(CXXFLAGS) -m64 -c $< -o $@
-
+# Shared library
 $(TARGET32): $(OBJS_32)
-	$(ECHO)$(CXX32) -shared $(CFLAGS) -m32 $^ -o $@ $(LDFLAGS) 1>linkerror32 2>&1
+	$(ECHO)$(CC32) -shared $(CFLAGS) -m32 $^ -o $@ $(LDFLAGS) 1>linkerror32 2>&1
 
 $(TARGET64): $(OBJS_64)
-	$(ECHO)$(CXX64) -shared $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
+	$(ECHO)$(CC64) -shared $(CFLAGS) -m64 $^ -o $@ $(LDFLAGS) 1>linkerror64 2>&1
 
-# Right now, static compilation doesn't work because of NtQueryProcessInformation
-# $(LIB32): $(OBJS_32)
-# 	$(ECHO)$(AR32) rcs $@ $^
-# 	$(ECHO)$(RANLIB32) $@
-# 
-# $(LIB64): $(OBJS_64)
-# 	$(ECHO)$(AR64) rcs $@ $^
-# 	$(ECHO)$(RANLIB64) $@
+# Static library
+$(LIB32): $(OBJS_32)
+	$(ECHO)$(AR32) rcs $@ $^
+	$(ECHO)$(RANLIB32) $@
+
+$(LIB64): $(OBJS_64)
+	$(ECHO)$(AR64) rcs $@ $^
+	$(ECHO)$(RANLIB64) $@
 
 clean:
 	rm -rf $(BUILD_DIR_32) $(BUILD_DIR_64) $(LIB_DIR) $(TARGET32) $(TARGET64) $(LIB32) $(LIB64)
+

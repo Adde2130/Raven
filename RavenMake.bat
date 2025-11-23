@@ -15,5 +15,6 @@ set "curdir=%CD%"
 
 rem Run RavenMake.exe with the argument of the relative path {curdir}/lib
 cd RavenMake
-RavenMake.exe "%curdir%\lib"
+rem RavenMake.exe "%curdir%\lib"
+python ravenmake.py
 cd ..

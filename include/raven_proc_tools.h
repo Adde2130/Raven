@@ -2,28 +2,13 @@
 #define RAVEN_PROC_TOOLS_H
 
 #include "raven_windows_internal.h"
+#include "raven_types.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <Psapi.h>
 #include <winternl.h>
 #include <ks.h>
-
-// PEB REFERENCE: https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm
-
-typedef struct {
-    HANDLE hModule;
-    char* dllname;
-} ModuleData;
-
-typedef struct {
-    void* entry;
-    char bytes[2];
-} EntryData;
-
-typedef struct {
-    ModuleData mData;
-    EntryData eData;
-} RavenInjectionData;
 
 typedef struct {
     STARTUPINFO si;
@@ -51,33 +36,11 @@ static inline void* GetPEB() {
 DWORD get_process_id(const char* target);
 
 /**
- * Inject a dll into the given process. Right now this is a blocking
- * function.
+ * @brief Repairs the entrypoint of a process by writing the original instructions to the entry.
  * 
- * \param dllname [in] The filename of the dll
- * \param pid     [in] The process ID
- * 
- * \returns       Whether the injection was successful
-*/
-bool inject_dll(const char* dllname, int pid);
-
-/**
- * @brief A more complex version of inject_dll. This injects the DLL with the given data
- *        and requires the DLL to have a DWORD WINAPI RavenLoader(LPVOID) function to call instead in order
- *        to handle the data and create the main thread. If the main thread is created
- *        in PROCESS_ATTACH under DllMain, then the thread will be created in the injector
- *        and the process will crash. If you wish to send any additional data, make sure the base
- *        of the struct contains a RavenInjectionData struct.
- * 
- * @param dllname  [in]           The name of the dll
- * @param pid      [in]           The process ID
- * @param data     [in, optional] The data sent to the DLL.
- * @param datasize [in, optional] The size of the data sent to the DLL
- * 
- * @return 0 if the code succeeds, otherwise _________
+ * @param data [in] The entry data for the PE
  */
-uint8_t inject_dll_ex(const char* dllname, int pid, RavenInjectionData* data, size_t datasize);
-
+void repair_entry(EntryData* data);
 
 /**
  * @brief Finds the entry point of an executable by reading the PE headers.
@@ -90,14 +53,6 @@ uint8_t inject_dll_ex(const char* dllname, int pid, RavenInjectionData* data, si
  *          as this info is not available in the PE.
  */
 uint32_t find_entry_point(const char* executable, void** p_entrypoint);
-
-/**
- * @brief Repairs the entrypoint by writing the original data to it
- * 
- * @param data [in] The entry data for the PE
- */
-void repair_entry(EntryData* data);
-
 /**
  * @brief Starts a process and creates an infinite jump loop at the entry point, effectively
  *        pausing it but allowing threads to work within the process. Arguments can be passed

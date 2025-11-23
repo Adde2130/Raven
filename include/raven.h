@@ -3,10 +3,13 @@
 
 #include "raven_binary.h"
 #include "raven_debug.h"
+#include "raven_detour.h"
 #include "raven_hook.h"
+#include "raven_inject.h"
 #include "raven_memory.h"
 #include "raven_monitor.h"
 #include "raven_proc_tools.h"
+#include "raven_types.h"
 #include "raven_util.h"
 
 #endif

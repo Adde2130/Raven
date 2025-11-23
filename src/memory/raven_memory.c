@@ -190,3 +190,21 @@ void patch(mem_patch* patch) {
     protected_write(patch->original_bytes, patch->address, patch->size);
     protected_write(patch->address, patch->patch_bytes, patch->size);
 }
+
+void raven_nop(void* dest, uint32_t count) {
+	const uint8_t NOP = 0x90;
+	for(uint32_t i = 0; i < count; i++) 
+		protected_write(PTROFFSET(dest, i), &NOP, 1);
+}
+
+void raven_write8(void* dest, uint8_t value) {
+	protected_write(dest, &value, 1);
+}
+
+void raven_write16(void* dest, uint16_t value) {
+	protected_write(dest, &value, 2);
+}
+
+void raven_write32(void* dest, uint32_t value) {
+	protected_write(dest, &value, 4);
+}

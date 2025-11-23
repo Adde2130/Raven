@@ -95,9 +95,8 @@ DWORD WINAPI window_monitor_thread(){
     return 0;
 }
 
-uint8_t raven_listen(const char* function_name, ...) {
+uint8_t raven_listen(const char* function_name, int arg_count, ...) {
     va_list args;
-    uint32_t arg_count;
     va_start(args, arg_count);
     if(arg_count % 2)
         return 1;
