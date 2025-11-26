@@ -28,11 +28,9 @@ typedef enum {
  * 
  * @param target	      [in]            The address to detour.
  * @param detour_func     [in]            The function that will be called.
- * @param mangled_bytes   [in,  optional] The bytes mangled from the jump instruction.
- * @param original_bytes  [out, optional] The original bytes for restoring the function. This should be at least 5 bytes + the amount of mangled bytes.
  * 
  * @returns DETOUR_SUCCESS If the function succeeds. Otherwise, see the detour error enum.
  */
-DETOUR_ERROR raven_detour(void* target, void* detour_func, uint8_t mangled_bytes, char** original_bytes);
+DETOUR_ERROR raven_detour(void* target, void* detour_func);
 
 #endif

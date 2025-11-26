@@ -4,8 +4,14 @@
 #include "raven_assembly.h"
 
 #ifdef _WIN64
+#include "hde64.h"
+#define hde_disasm 	hde64_disasm
+#define hde_t		hde64s
 #define ADDRESS_SIZE 8
 #else
+#include "hde32.h"
+#define hde_disasm 	hde32_disasm
+#define hde_t		hde32s
 #define ADDRESS_SIZE 4
 #endif
 
@@ -186,8 +192,17 @@ static void* __create_function_trampoline(void* original_address, uint8_t mangle
 	return trampoline;
 }
 
-DETOUR_ERROR raven_detour(void* target, void* detour_func, uint8_t mangled_bytes, char** original_bytes) {
-	const int NOP_CONST = NOP;
+static uint8_t __get_mangled_bytes(void* target) {
+	uint8_t instruction_size = 0;
+	hde_t hs;
+	while(instruction_size < 5)
+		instruction_size += hde_disasm(PTROFFSET(target, instruction_size), &hs);
+
+	return instruction_size - 5;
+}
+
+DETOUR_ERROR raven_detour(void* target, void* detour_func) {
+	int mangled_bytes = __get_mangled_bytes(target);
 
 	void* trampoline = __create_function_trampoline(target, mangled_bytes);
 	if(!trampoline)
@@ -210,11 +225,7 @@ DETOUR_ERROR raven_detour(void* target, void* detour_func, uint8_t mangled_bytes
 	memcpy(jmp_instruction + 1, &function_offset, 4);
 	protected_write(target, jmp_instruction, JMP_SIZE);
 
-	if(original_bytes != NULL)
-		protected_write(original_bytes, target, JMP_SIZE + mangled_bytes);
-
-	for(int i = 0; i < mangled_bytes; i++)
-		protected_write(PTROFFSET(target, JMP_SIZE + i), &NOP_CONST, 1);
+	raven_nop(PTROFFSET(target, JMP_SIZE), mangled_bytes);
 
 	return DETOUR_SUCCESS;
 }

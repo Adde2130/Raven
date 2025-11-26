@@ -27,6 +27,15 @@
 #define HOOK_CANNOT_CREATE_END_RELAY   4
 /* ---------------------------------------- */
 
+typedef struct {
+	void* target;
+	void* hook;
+	void** p_trampoline;
+	int stack_parameters;
+	RavenRegister register_parameters;
+	RavenRegister return_register;
+} RavenHookSettings;
+
 /**
  *        
  * @brief Hooks the specified function in the current process. If the new func is more than
@@ -42,9 +51,7 @@
  */
 uint8_t raven_hook(void* target, void* hook, void** trampoline);
 
-/* TODO: MAKE A FLAG AS PARAMETER FOR RAVEN_HOOK CALLED CAPABILITIES, USE THAT TO PASS `IN_EAX`, `IN_EDX` ETC. INSTEAD OF THIS */
-/*		 ALTERNATIVELY, MAKE HookSettings A STRUCT WHICH YOU PASS AS PARAMETER */
-uint8_t raven_hook_ex(void* target, void* hook, void** trampoline, uint8_t param_count, RavenRegister parameter_registers, uint8_t mangled_bytes, uint8_t* original_bytes);
+uint8_t raven_hook_ex(RavenHookSettings* settings);
 
 
 #endif

@@ -247,15 +247,15 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
         switch (disp_size) {
             case 1:
                 hs->flags |= F_DISP8;
-                hs->disp.disp8 = *p;
+                hs->disp8 = *p;
                 break;
             case 2:
                 hs->flags |= F_DISP16;
-                hs->disp.disp16 = *(uint16_t *)p;
+                hs->disp16 = *(uint16_t *)p;
                 break;
             case 4:
                 hs->flags |= F_DISP32;
-                hs->disp.disp32 = *(uint32_t *)p;
+                hs->disp32 = *(uint32_t *)p;
                 break;
         }
         p += disp_size;
@@ -266,7 +266,7 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
         if (cflags & C_REL32) {
             if (pref & PRE_66) {
                 hs->flags |= F_IMM16 | F_RELATIVE;
-                hs->imm.imm16 = *(uint16_t *)p;
+                hs->imm16 = *(uint16_t *)p;
                 p += 2;
                 goto disasm_done;
             }
@@ -274,11 +274,11 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
         }
         if (pref & PRE_66) {
             hs->flags |= F_IMM16;
-            hs->imm.imm16 = *(uint16_t *)p;
+            hs->imm16 = *(uint16_t *)p;
             p += 2;
         } else {
             hs->flags |= F_IMM32;
-            hs->imm.imm32 = *(uint32_t *)p;
+            hs->imm32 = *(uint32_t *)p;
             p += 4;
         }
     }
@@ -286,29 +286,29 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
     if (cflags & C_IMM16) {
         if (hs->flags & F_IMM32) {
             hs->flags |= F_IMM16;
-            hs->disp.disp16 = *(uint16_t *)p;
+            hs->disp16 = *(uint16_t *)p;
         } else if (hs->flags & F_IMM16) {
             hs->flags |= F_2IMM16;
-            hs->disp.disp16 = *(uint16_t *)p;
+            hs->disp16 = *(uint16_t *)p;
         } else {
             hs->flags |= F_IMM16;
-            hs->imm.imm16 = *(uint16_t *)p;
+            hs->imm16 = *(uint16_t *)p;
         }
         p += 2;
     }
     if (cflags & C_IMM8) {
         hs->flags |= F_IMM8;
-        hs->imm.imm8 = *p++;
+        hs->imm8 = *p++;
     }
 
     if (cflags & C_REL32) {
       rel32_ok:
         hs->flags |= F_IMM32 | F_RELATIVE;
-        hs->imm.imm32 = *(uint32_t *)p;
+        hs->imm32 = *(uint32_t *)p;
         p += 4;
     } else if (cflags & C_REL8) {
         hs->flags |= F_IMM8 | F_RELATIVE;
-        hs->imm.imm8 = *p++;
+        hs->imm8 = *p++;
     }
 
   disasm_done:

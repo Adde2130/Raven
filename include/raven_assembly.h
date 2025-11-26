@@ -153,4 +153,18 @@ void resolve_mangled_bytes(void* original_address, void* target_address, uint8_t
  */
 uint8_t raven_jmp(void* from, void* to);
 
+/**
+ * @brief Creates asm code to shift `count` number of values
+ * 		  `shift_amount` number of spaces up the stack.
+ *
+ * @param [in] 	count			The number of values to shift
+ * @param [in] 	shift_amount	The number of slots to shift it
+ * @param [out]	asm_out			The generated asm code
+ *
+ * @remarks This function does not generate a POP EAX for you.
+ * 			It is expected that you add this yourself to the 
+ * 			assembly code. 
+ */
+int raven_shift_stack(int count, int shift_amount, byte_t* asm_out);
+
 #endif

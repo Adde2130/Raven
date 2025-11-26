@@ -27,7 +27,7 @@ static void* __create_start_relay(void* start_address, void* destination_address
 
     void* relay_address = find_unallocated_memory(start_address, sizeof(bytes));
     if(!relay_address)
-            return NULL;
+		return NULL;
 
     memcpy(bytes + 3, &destination_address, 8);
     memcpy(relay_address, bytes, sizeof(bytes));
@@ -77,8 +77,8 @@ static uint8_t __create_func_trampoline(void** trampoline, void* target_func, ui
 	return 0;
 }
 
-uint8_t __get_mangled_bytes(void* target) {
-	int instruction_size = 0;
+static uint8_t __get_mangled_bytes(void* target) {
+	uint8_t instruction_size = 0;
 	hde_t hs;
 	while(instruction_size < 5)
 		instruction_size += hde_disasm(PTROFFSET(target, instruction_size), &hs);
@@ -291,7 +291,65 @@ static void* __create_end_relay_ex32(void* destination, uint8_t stack_parameters
 	return relay_address;
 }
 
-static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_func, uint8_t mangled_bytes, RavenRegister register_parameters) {
+static void* __create_pre_trampoline(void* trampoline, int total_param_count, RavenRegister out_register) {
+	void* pre_trampoline = find_unallocated_memory(trampoline, 256);	
+	if(!pre_trampoline)
+		return NULL;
+
+	byte_t code[256];
+	int code_len;
+	int jmp_instruction_offset;
+
+	int stack_values = total_param_count + 1;
+
+	code_len = raven_shift_stack(stack_values, 1, code);
+
+	infobox("CREATED STACK SHIFT: 0x%p\nlen: %d", code, code_len);
+
+	/* mov EAX, [ESP + 4] */
+	code[code_len++] = 0x8B;
+	code[code_len++] = 0x44;
+	code[code_len++] = 0x24;
+	code[code_len++] = 0x04;
+
+	/* mov [ESP + (stack_values + 1) * 4], EAX */
+	code[code_len++] = 0x89;
+	code[code_len++] = 0x44;
+	code[code_len++] = 0x24;
+	code[code_len++] = 0x4 * (stack_values + 1);
+
+	code[code_len++] = POP_EAX;
+
+	/* mov [ESP], after_trampoline */
+	byte_t smuggle_return_address[] = {
+		0xC7, 0x04, 0x24, 
+		0x00, 0x00, 0x00, 0x00 // Return address here
+	};
+
+	void* return_address = PTROFFSET(pre_trampoline, code_len + sizeof(smuggle_return_address) + 5);
+	memcpy(smuggle_return_address + 3, &return_address, 4);
+	memcpy(PTROFFSET(code, code_len), smuggle_return_address, sizeof(smuggle_return_address));
+	code_len += sizeof(smuggle_return_address);
+	
+	jmp_instruction_offset = code_len;
+	code_len += 5;
+
+	int out_register_bits = (__get_highest_bit(out_register) - 1) << 3;
+
+	/* mov EAX, OUT_REGISTER */
+	code[code_len++] = 0x89;
+	code[code_len++] = 0b11000000 | out_register_bits;
+	
+	code[code_len++] = RET;
+
+	protected_write(pre_trampoline, code, code_len);
+
+	raven_jmp(PTROFFSET(pre_trampoline, jmp_instruction_offset), trampoline);
+
+	return pre_trampoline;
+}
+
+static uint8_t __create_func_trampoline_ex32(RavenHookSettings* settings, int mangled_bytes) {
 	/**
 	 * 		First thing on the stack is the return address, we need it to fuck off.
 	 * 		Move the variables needed for the registers up and then put the return
@@ -299,7 +357,7 @@ static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_fun
 	 *
 	 *		0019FABC  ret_address
 	 *		0019FAC0  reg2
-	 *		0020FAC4  reg1
+	 *		0019FAC4  reg1
 	 *		0019FAC8  stack1  
 	 *		0019FACC  stack2
 	 *
@@ -308,7 +366,7 @@ static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_fun
 	 *
 	 *		0019FABC  reg2
 	 *      0019FAC0  reg1
-	 *      0020FAC4  ret_address
+	 *      0019FAC4  ret_address
 	 *      0019FAC8  stack1
 	 *      0019FACC  stack2
 	 *
@@ -320,7 +378,7 @@ static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_fun
 	 *		mov  REG1, [ESP + 8]
 	 *		mov  [ESP + 4], REG1
 	 *		...
-	 *		mov  REG1, [ESP + (N + 1) * 4]
+	 *		mov  REG1, [ESP + (N + 1) * 4] <-- N = parameter register count
 	 *		mov	 [ESP + N * 4], REG1
 	 *
 	 *		mov  REG1, [ESP] <-- ret address
@@ -336,64 +394,100 @@ static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_fun
 	 *		overwritten_instruction
 	 *
 	 *		jmp target_func
-	 *	
+	 *
+	 *
+	 *
+	 *		If there is an output register other than EAX, we create a 
+	 *		pre-trampoline which we call first. Because of this we need 
+	 *		to smuggle in a new return address below the stack back to
+	 *		the pre-trampoline. E.g:
+	 *
+	 *
+	 *			0019FABC  ret_address
+	 *			0019FAC0  reg2
+	 *			0019FAC4  reg1
+	 *			0019FAC8  stack1  
+	 *			0019FACC  stack2      
+	 *
+	 *					|
+	 *					V
+	 *
+	 *			0019FAB8  ret_address
+	 *			0019FABC  reg2
+	 *			0019FAC0  reg1
+	 *			0019FAC4  stack1  
+	 *			0019FAC8  stack2      
+	 *			0019FACC  pre_trampole_ret_address      
+	 *
+	 *
+	 * 	pre_trampoline:
+	 * 		sub		ESP, 4
+	 *		push	EAX
+	 *		
+	 * 		mov	 	EAX, [ESP + 0x8] 	<-- N = values pushed onto the stack by trampoline call
+	 * 		mov  	[ESP + 0x4], REG1		
+	 *		mov	 	EAX, [ESP + 0xC]  
+	 *		mov  	[ESP + 0x8], REG1
+	 *		...
+	 *		mov	 	EAX, [ESP + (N + 1) * 4]	
+	 *		mov	 	[ESP + N * 4], REG1 
+	 *
+	 *		mov 	EAX, old_ret
+	 *		mov	 	[ESP + (N + 2) * 4], EAX
+	 *
+	 *		pop 	EAX
+	 *
+	 *		mov	 	[ESP], 	after_trampoline <-- our own return address
+	 *
+	 * 		jmp 	trampoline
+	 *
+	 * 	after_trampoline:
+	 * 		mov		EAX, RET_REG	<-- this should be able use registers other than EAX if
+	 * 		ret							the function uses ST0 or anything else for ret value
+	 *
 	 */
+	
+	void** trampoline = settings->p_trampoline;
+	void* target_func = settings->target;
+	RavenRegister register_parameters = settings->register_parameters;
 
 	const int jmp_size = 5;
 	byte_t bytes[256] = { 0 }; 
 	int overwritten_instruction_len = mangled_bytes + jmp_size;
 
-
 	byte_t stack_flipper[64];
-	size_t stack_flipper_size = 0;
-
-	/* sub ESP, 4 */
-	stack_flipper[0] = 0x83;
-	stack_flipper[1] = 0xEC;
-	stack_flipper[2] = 0x04;
-	stack_flipper_size += 3;
-
-	RavenRegister current_register_byte = 0x44 | ((__get_highest_bit(register_parameters) - 1) << 3);
+	size_t stack_flipper_size;
 	int register_parameter_count = __get_bit_count(register_parameters);
-	for(int i = 0; i <= register_parameter_count; i++) {
-		/* mov REG1, [ESP + (i + 1) * 4] */
-		stack_flipper[stack_flipper_size++] = 0x8B;
-		stack_flipper[stack_flipper_size++] = current_register_byte;
-		stack_flipper[stack_flipper_size++] = 0x24;
-		stack_flipper[stack_flipper_size++] = (i + 1) * 4;
 
-		/* mov [ESP + i * 4], REG1 */
-		stack_flipper[stack_flipper_size++] = 0x89;
-		stack_flipper[stack_flipper_size++] = current_register_byte;
-		stack_flipper[stack_flipper_size++] = 0x24;
-		stack_flipper[stack_flipper_size++] = i * 4;
-	}
+	stack_flipper_size = raven_shift_stack(register_parameter_count + 1, 1, stack_flipper);
 
-	/* mov REG1, [ESP] */ 
+	/* mov EAX, [ESP + 4] */ 
 	stack_flipper[stack_flipper_size++] = 0x8B;
-	stack_flipper[stack_flipper_size++] = current_register_byte;
+	stack_flipper[stack_flipper_size++] = 0x44;
 	stack_flipper[stack_flipper_size++] = 0x24;
-	stack_flipper[stack_flipper_size++] = 0x0;
+	stack_flipper[stack_flipper_size++] = 0x4;
 
-	/* mov [ESP + (register_parameter_count + 1) * 4], REG1 */
+	/* mov [ESP + (register_parameter_count + 2) * 4], EAX */
 	stack_flipper[stack_flipper_size++] = 0x89;
-	stack_flipper[stack_flipper_size++] = current_register_byte;
+	stack_flipper[stack_flipper_size++] = 0x44;
 	stack_flipper[stack_flipper_size++] = 0x24;
-	stack_flipper[stack_flipper_size++] = (register_parameter_count + 1) * 4;
+	stack_flipper[stack_flipper_size++] = (register_parameter_count + 2) * 4;
 
-
+	stack_flipper[stack_flipper_size++] = POP_EAX;
+	
+	/* add	ESP, 4 */
 	stack_flipper[stack_flipper_size++] = 0x83;
 	stack_flipper[stack_flipper_size++] = 0xC4;
 	stack_flipper[stack_flipper_size++] = 0x04;
 	memcpy(bytes, stack_flipper, stack_flipper_size);
 
-
 	size_t prologue_size = stack_flipper_size;
-	for(int i = 0; register_parameters; i++) {
-		if(register_parameters & 1)
+	RavenRegister regi = register_parameters;
+	for(int i = 0; regi; i++) {
+		if(regi & 1)
 			bytes[prologue_size++] = 0x58 + i; // pop REGi
 
-		register_parameters >>= 1;
+		regi >>= 1;
 	}
 
 	int trampoline_size = prologue_size + overwritten_instruction_len + jmp_size;
@@ -417,30 +511,41 @@ static uint8_t __create_func_trampoline_ex32(void** trampoline, void* target_fun
 	memcpy(bytes + prologue_size + overwritten_instruction_len, jmp_instruction, jmp_size);
 
 	protected_write(*trampoline, bytes, trampoline_size);
+
+	if(settings->return_register) {
+		*trampoline = __create_pre_trampoline(
+				*trampoline, 
+				register_parameter_count + settings->stack_parameters,
+				settings->return_register
+		);
+	}
+
 	return 0;
 }
 
-uint8_t raven_hook_ex(void* target_func, void* hook_func, void** func_trampoline, uint8_t param_count, RavenRegister parameter_registers, uint8_t mangled_bytes, uint8_t* original_bytes) {
+/* TODO: Make the hook store the return value in settings->return_register */
+uint8_t raven_hook_ex(RavenHookSettings* settings) {
 	int jmp_size = 5;
+
+	void* target_func = settings->target;
+	void* hook_func = settings->hook;
+ 	void** func_trampoline = settings->p_trampoline;
+	int stack_parameter_count  = settings->stack_parameters;
+	RavenRegister parameter_registers = settings->register_parameters;
+	
+	int mangled_bytes = __get_mangled_bytes(target_func);
 
 	if(parameter_registers == 0) {
 		raven_hook(target_func, hook_func, func_trampoline);
 	}
 
-	int register_count = __get_bit_count(parameter_registers);
-	int stack_parameter_count = param_count - register_count;
-
     if(!target_func || !pointer_valid(target_func, jmp_size))
         return HOOK_INVALID_TARGET;
 
-    if(original_bytes != NULL)
-        protected_write(original_bytes, target_func, jmp_size + mangled_bytes);
-
-
     if(func_trampoline != NULL) {
 		uint8_t error = __create_func_trampoline_ex32(
-			func_trampoline, target_func,
-			mangled_bytes, parameter_registers
+			settings,
+			mangled_bytes
 		);
 
 		if(error)

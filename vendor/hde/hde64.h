@@ -87,12 +87,12 @@ typedef struct {
         uint16_t imm16;
         uint32_t imm32;
         uint64_t imm64;
-    } imm;
+    };
     union {
         uint8_t disp8;
         uint16_t disp16;
         uint32_t disp32;
-    } disp;
+    };
     uint32_t flags;
 } hde64s;
 
